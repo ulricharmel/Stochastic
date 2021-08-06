@@ -127,15 +127,51 @@ def fused_rime(lm, uvw, frequency, shape_params, stokes):
     def body(s, vis):
         phdelay = phase_delay(lm[None, s], uvw, frequency)
         brness = brightness(stokes[None, s])
-        coh = jnp.einsum("srf,si->rfi",
+        '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
-                         brness)
-        '''gauss_shape = gaussian(uvw, frequency, shape_params[None, s])
+                         brness)'''
+        gauss_shape = gaussian(uvw, frequency, shape_params[None, s])
         coh = jnp.einsum("srf,srf,si->rfi",
                          phdelay,
                          gauss_shape,
-                         brness)'''
+                         brness)
 
         return vis + coh.astype(dtype)
 
     return lax.fori_loop(0, source, body, vis)
+
+@jit
+def fused_rime_sinlge_corr(lm, uvw, frequency, shape_params, stokes):
+
+    # Full expansion over source axis -- very memory hungry
+
+    # return jnp.einsum("srf,si->rfi",
+    #                   phase_delay(lm, uvw, frequency),
+    #                   brightness(stokes))
+
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = stokes[None, s]
+        '''coh = jnp.einsum("srf,si->rfi",
+                         phdelay,
+                         brness)'''
+        gauss_shape = gaussian(uvw, frequency, shape_params[None, s])
+        coh = jnp.einsum("srf,srf,si->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
+
