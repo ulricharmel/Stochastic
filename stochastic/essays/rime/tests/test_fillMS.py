@@ -6,7 +6,7 @@ import pyrap.tables as pt
 import jax.config
 import jax.numpy as jnp
 
-from stochastic.essays.rime.jax_rime import fused_rime
+from stochastic.essays.rime.jax_rime import fused_rime, fused_rime_sinlge_corr
 
 # define some constants
 deg2rad = jnp.pi / 180.0;
@@ -15,8 +15,9 @@ uas2rad = 1e-6 * deg2rad / 3600.0;
 
 # define global variables
 lm = jnp.array([[0*uas2rad, 0*uas2rad]]) # dims: nsrc x 2
-shape_params = jnp.array([[20*uas2rad, 20*uas2rad, jnp.deg2rad(0)]])
-stokes = jnp.array([[1.6,0,0,0]]) # dims: nsrc x 4
+shape_params = jnp.array([[40*arcsec2rad, 60*arcsec2rad, jnp.deg2rad(0)]])
+stokes = jnp.array([[10,0,0,0]]) # dims: nsrc x 4
+stokes2 = jnp.array([[10]])
 
 noise_per_vis = 0.1 # error on each visibility in Jy. None -> fit it
 sefds = np.array([6000,1300,560,220,2000,1600,5000,1600,4500]) # station SEFDs in Jy - from EHT2017_station_info
@@ -49,11 +50,15 @@ def main(args):
 
     # Use jax to predict vis 
     vis = fused_rime(lm, uvw, freq, shape_params, stokes)
+    
+    # vis2 = fused_rime_sinlge_corr(lm, uvw, freq, shape_params, stokes2)
+
+    # print(vis[:,:,0]-vis2)
 
     # add noise
-    noise = np.random.normal(0, noise_per_vis, size=vis.shape)
+    noise = np.random.normal(0, noise_per_vis, size=vis.shape) + 1j*np.random.normal(0, noise_per_vis, size=vis.shape)
     noise = jnp.asarray(noise)
-    vis = vis + noise
+    # vis = vis + noise
 
     tab = pt.table(args.ms, readonly=False)
     tab.putcol('DATA', np.array(vis)) # convert JAX array to numpy array
