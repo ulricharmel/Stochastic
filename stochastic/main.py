@@ -1,96 +1,30 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-import os, sys, time
-import argparse
-import pyrap.tables as pt
+import sys
 import numpy as np
-import jax
-import jax.numpy as jnp
-from jax import lax, jit, random
-from jax.test_util import check_grads
+
 import time
 
-import traceback
-
-try:
-	import ipdb as pdb
-except:
-	import pdb
+from contextlib import ExitStack
+from loguru import logger
+from stochastic import configure_loguru
 
 from stochastic.utils.utils import create_output_dirs, save_output
 from stochastic.utils.parser import create_parser
-from stochastic.data_handling.read_data import load_data, load_model 
+from stochastic.data_handling.read_data import load_data, load_model
+from stochastic.opt.jax_grads import update as jax_grads_update
+from stochastic.opt.custom_grads import update as custom_grads_update 
 
-from stochastic.essays.rime.jax_rime import fused_rime, fused_rime_sinlge_corr
+import stochastic.essays.rime.tools as RT
 
-LEARNING_RATE = 1e-1
-EPOCHS = 2
+LEARNING_RATE = dict(stokes=1e-1, radec=1e-6, shape_params=1e2)
+EPOCHS = 30
 
-def forward(params, data_uvw, data_chan_freq):
-    """
-    Compute the model visibilities using jax rime
-    Args:
-        Params (dictionary)
-            flux, lm, shape parameters (ex, ey, pa)
-        data_uvw (array)
-            uvw coordinates from the measurement set
-        data_chan_freq (array)
-            frequencies from the measurement set
-    Returns:  
-        Model visibilities (array)
-    """
-
-    lm = params['lm']
-    shape_params = params["shape_params"]
-    stokes = params["stokes"]
-
-    model_vis = fused_rime_sinlge_corr(lm, data_uvw, data_chan_freq, shape_params, stokes)
-
-    return model_vis
-
-def loss_fn(params, data_uvw, data_chan_freq, data):
-    """
-    Compute the loss function
-    Args:
-        Params list with a dictionary)
-            flux, lm, shape parameters (ex, ey, pa)
-        data_uvw (array)
-            uvw coordinates from the measurement set
-        data_chan_freq (array)
-            frequencies from the measurement set
-        data (array)
-            data visibilities
-    Returns:  
-        loss function
-    """
-    import pdb; pdb.set_trace()
-    model_vis = forward(params, data_uvw, data_chan_freq)
-    diff = data - model_vis
-
-    return jnp.mean(diff.real*diff.real+diff.imag*diff.imag)
-
-# @jax.jit
-def update(params, data_uvw, data_chan_freq, data):
-    loss, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data)
-    # check_grads(loss_fn, (params, data_uvw, data_chan_freq, data), order=2)
-    # Note that `grads` is a pytree with the same structure as `params`.
-    # `jax.grad` is one of the many JAX functions that has
-    # built-in support for pytrees.
-    
-    import pdb; pdb.set_trace()
-
-    # This is handy, because we can apply the SGD update using tree utils:
-    return jax.tree_multimap(lambda p, g: p - LEARNING_RATE * g, params, grads), loss
-
-
-def train(params, data_uvw, data_chan_freq, data, batch_size, outdir):
+def train(params, data_uvw, data_chan_freq, data, batch_size, outdir, update):
     """
     Use Stochastic gradient decent and try to fit for the parameters
     Compute the loss function
     Args:
         Params list with a dictionary)
-            flux, lm, shape parameters (ex, ey, pa)
+            flux, radec, shape parameters (ex, ey, pa)
         data_uvw (array)
             uvw coordinates from the measurement set
         data_chan_freq (array)
@@ -112,6 +46,8 @@ def train(params, data_uvw, data_chan_freq, data, batch_size, outdir):
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
     num_batches = len(inds)
+    best_loss = 10000.0
+    best_model = params.copy()  
 
     loss_avg = {}
     for epoch in range(EPOCHS):
@@ -125,34 +61,40 @@ def train(params, data_uvw, data_chan_freq, data, batch_size, outdir):
             d_uvw = data_uvw[ts:te]
             d_freq = data_chan_freq.copy()
             d_vis = data[ts:te]
-            params, loss_i =  update(params, d_uvw, d_freq, d_vis)
-            loss_i = np.asarray(loss_i)
-            print(loss_i)
-            loss_avg["epoch-%d"%epoch].append(loss_i)
+            # import pdb; pdb.set_trace()
+            params, loss_i =  update(params, d_uvw, d_freq, d_vis, LEARNING_RATE)
+            loss_avg["epoch-%d"%epoch].append(np.asarray(loss_i))
+            if batch==0 and epoch==0:
+                logger.info("Starting loss is {}", loss_i)
+
+            if np.asarray(loss_i) < best_loss:
+                best_loss = loss_i 
+                best_model = params.copy()
 
         mean_loss = sum(loss_avg["epoch-%d"%epoch])/len(loss_avg["epoch-%d"%epoch])
 
         epoch_time = time.time() - start_time
-        print("Epoch {} in {:0.2f} sec and loss is {:0.2f}".format(epoch, epoch_time, mean_loss))
+        logger.info("Epoch {} in {:0.3f} sec and loss is {:0.5f}".format(epoch, epoch_time, mean_loss))
     
     save_output(outdir+"/params.json", params, convert=True)
+    save_output(outdir+"/params_best.json", best_model, convert=True)
     save_output(outdir+"/loss.json", loss_avg, convert=True)
 
     return
 
-def main():
+def _main(exitstack):
     
+    configure_loguru()
     parser = create_parser()
     args = parser.parse_args()
-    
-    try:
-        create_output_dirs(args.outdir)
-        data_vis, data_uvw, data_chan_freq = load_data(args.msname, args.datacol, args.one_corr)
-        params = load_model(args.init_model)
-        train(params, data_uvw, data_chan_freq, data_vis, args.batch_size, args.outdir)
+    create_output_dirs(args.outdir)
+    update = custom_grads_update if args.custom_grads else jax_grads_update
+    data_vis, data_uvw, data_chan_freq, phasedir = load_data(args.msname, args.datacol, args.one_corr)
+    RT.ra0, RT.dec0 = phasedir
+    params = load_model(args.init_model)
+    train(params, data_uvw, data_chan_freq, data_vis, args.batch_size, args.outdir, update)
 
-    except:
-        extype, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
-
+@logger.catch
+def main():
+    with ExitStack() as stack:
+        _main(stack)

@@ -16,5 +16,7 @@ def create_parser():
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
 
+    p.add_argument("--custom-grads", "-cg", dest="custom_grads", help="use custom derivatives not jax grads",  action="store_true")
+
     return p
 

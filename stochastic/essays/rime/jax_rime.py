@@ -1,15 +1,10 @@
 from functools import partial
-
-import numpy as np
-from scipy.constants import c as lightspeed
-
 import jax.numpy as jnp
 from jax import jit, vmap
 from jax import lax, ops
 from jax.experimental import loops
 
-
-minus_two_pi_over_c = -2*jnp.pi/lightspeed
+from stochastic.essays.rime.tools import *
 
 @jit
 def gaussian(uvw, frequency, shape_params):
@@ -106,7 +101,7 @@ def coherency(nsrc, lm, uvw, frequency, stokes):
 
 
 @jit
-def fused_rime(lm, uvw, frequency, shape_params, stokes):
+def fused_rime(radec, uvw, frequency, shape_params, stokes):
 
     # Full expansion over source axis -- very memory hungry
 
@@ -114,10 +109,15 @@ def fused_rime(lm, uvw, frequency, shape_params, stokes):
     #                   phase_delay(lm, uvw, frequency),
     #                   brightness(stokes))
 
+    lm = radec2lm(radec)
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]
     corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
 
     dtype = jnp.result_type(lm.dtype, uvw.dtype,
                             frequency.dtype, shape_params.dtype, stokes.dtype,
@@ -130,7 +130,7 @@ def fused_rime(lm, uvw, frequency, shape_params, stokes):
         '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
                          brness)'''
-        gauss_shape = gaussian(uvw, frequency, shape_params[None, s])
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
         coh = jnp.einsum("srf,srf,si->rfi",
                          phdelay,
                          gauss_shape,
@@ -141,7 +141,7 @@ def fused_rime(lm, uvw, frequency, shape_params, stokes):
     return lax.fori_loop(0, source, body, vis)
 
 @jit
-def fused_rime_sinlge_corr(lm, uvw, frequency, shape_params, stokes):
+def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes):
 
     # Full expansion over source axis -- very memory hungry
 
@@ -149,10 +149,15 @@ def fused_rime_sinlge_corr(lm, uvw, frequency, shape_params, stokes):
     #                   phase_delay(lm, uvw, frequency),
     #                   brightness(stokes))
 
+    lm = radec2lm(radec)
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]
     corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
 
     dtype = jnp.result_type(lm.dtype, uvw.dtype,
                             frequency.dtype, shape_params.dtype, stokes.dtype,
@@ -165,7 +170,7 @@ def fused_rime_sinlge_corr(lm, uvw, frequency, shape_params, stokes):
         '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
                          brness)'''
-        gauss_shape = gaussian(uvw, frequency, shape_params[None, s])
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
         coh = jnp.einsum("srf,srf,si->rfi",
                          phdelay,
                          gauss_shape,

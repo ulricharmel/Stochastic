@@ -27,15 +27,19 @@ def load_data(msname, datacol, single_corr):
     data_chan_freq = freqtab.getcol('CHAN_FREQ')[0]
     freqtab.close()
 
+    fieldtab = pt.table(msname+"::FIELD", ack=False)
+    phasedir = (fieldtab.getcol("PHASE_DIR"))[0,0,:]
+    fieldtab.close()
+
     data_vis = jnp.asarray(data_vis)
     data_uvw = jnp.asarray(data_uvw)
     data_chan_freq = jnp.asarray(data_chan_freq)
 
-    return data_vis, data_uvw, data_chan_freq
+    return data_vis, data_uvw, data_chan_freq, phasedir
 
 def load_model(modelfile):
     """load model save a npy file.
-        Array with shape (nsources x l x m x emaj, emin x pa)
+        Array with shape (nsources x flux x ra x dec x emaj, emin x pa)
     Args:
         numpy file
     Returns:
@@ -44,12 +48,12 @@ def load_model(modelfile):
 
     model = np.load(modelfile)
     stokes = model[:,0:1]
-    lm = model[:,1:3]
+    radec = model[:,1:3]
     shape_params = model[:,3:]
 
     params = {}
-    params["lm"] = jnp.asarray(lm)
     params["stokes"] = jnp.asarray(stokes)
+    params["radec"]  = jnp.asarray(radec)
     params["shape_params"] = jnp.asarray(shape_params)
 
     return params
