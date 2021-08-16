@@ -1,178 +1,100 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-import os, sys, time
-import argparse
-import pyrap.tables as pt
+import sys
 import numpy as np
-import jax.numpy as jnp
-from jax import lax, jit, random
 
-from jaxns.nested_sampling import NestedSampler, save_results, load_results
-from jaxns.prior_transforms import PriorChain, UniformPrior
-from jaxns.plotting import plot_cornerplot, plot_diagnostics
-from jaxns.utils import summary
+import time
 
-from zagros.vardefs import *
-from zagros.essays.rime.jax_rime import fused_rime
+from contextlib import ExitStack
+from loguru import logger
+from stochastic import configure_loguru
 
-# set global variables 
-data_vis = None # variable to hold input data matrix
-data_ant1 = None
-data_ant2 = None
-data_uvw = None
-data_nant = None
-data_nbl = None
+from stochastic.utils.utils import create_output_dirs, save_output
+from stochastic.utils.parser import create_parser
+from stochastic.data_handling.read_data import load_data, load_model
+from stochastic.opt.jax_grads import update as jax_grads_update
+from stochastic.opt.custom_grads import update as custom_grads_update 
 
-data_uniqtimes = None
-data_uniqtime_indices = None
-data_ntime = None
-data_inttime = None
+import stochastic.essays.rime.tools as RT
 
-data_flag = None
-data_flag_row = None
+LEARNING_RATE = dict(stokes=1e-1, radec=1e-6, shape_params=1e2)
+EPOCHS = 30
 
-data_chan_freq=None # NB: Can handle only one SPW.
-data_nchan = None
-data_chanwidth = None
-
-baseline_dict = None # Constructed in main()
-weight_vector = None
-weight_vector_flattened = None
-per_bl_sig = None
-
-# define some constants
-uas2rad = 1e-6*jnp.pi/180.0/3600.0
-
-
-def create_parser():
-    p = argparse.ArgumentParser()
-    p.add_argument("ms", help="Input MS name")
-    p.add_argument("col", help="Name of the data column from MS")
-    return p
-
-
-def make_baseline_dictionary(ant_unique):
-    return dict([((x, y), np.where((data_ant1 == x) & (data_ant2 == y))[0]) for x in ant_unique for y in ant_unique if y > x])
-
-
-def log_likelihood(fd, l, m, **kwargs):
+def train(params, data_uvw, data_chan_freq, data, batch_size, outdir, update):
     """
-    Compute the loglikelihood function.
-    NOTE: Not called directly by user code; the function signature must
-          correspond to the requirements of the numerical sampler used.
-    Parameters
-    ----------
-    theta : Input parameter vector
-
-    Returns
-    -------
-    loglike : float
+    Use Stochastic gradient decent and try to fit for the parameters
+    Compute the loss function
+    Args:
+        Params list with a dictionary)
+            flux, radec, shape parameters (ex, ey, pa)
+        data_uvw (array)
+            uvw coordinates from the measurement set
+        data_chan_freq (array)
+            frequencies from the measurement set
+        data (array)
+            data visibilities
+        batch_size (int)
+            number of visibilities to train in one go
+        outdir (str)
+            save the fitted parameters and loss function here
+    Returns:  
+        fitted parameters
     """
 
-    # set up the arrays necessary for forward modelling
-    lm = jnp.array([[l, m]])
-    gauss_shape = jnp.array([[l, m]]) # just to match fused_rime signature; not used
-    #gauss_shape = jnp.array([[emaj, emin, pa]])
-    stokes = jnp.array([[fd, 0, 0, 0]])
+    # For now we will aussume a perfect measuremnt set
 
-    # Use jax to predict vis 
-    model_vis = fused_rime(lm, data_uvw, data_chan_freq, gauss_shape, stokes)
+    nsamples = data.shape[0]
+    assert nsamples%batch_size == 0, "Please choose a batch size that equaly divides the number of rows"
+    
+    inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
+    num_batches = len(inds)
+    best_loss = 10000.0
+    best_model = params.copy()  
 
-    # Compute chi-squared and loglikelihood
-    diff = model_vis - data_vis
-    chi2 = jnp.sum((diff.real*diff.real+diff.imag*diff.imag) * weight_vector)
-    loglike = -chi2/2. - jnp.log(2.*jnp.pi/weight_vector_flattened).sum()
+    loss_avg = {}
+    for epoch in range(EPOCHS):
+        start_time = time.time()
+        loss_avg["epoch-%d"%epoch] = []
+        arr = np.random.permutation(num_batches)
+        d_inds = inds[arr]
 
-    return loglike
+        for batch in range(num_batches):
+            ts, te = d_inds[batch]
+            d_uvw = data_uvw[ts:te]
+            d_freq = data_chan_freq.copy()
+            d_vis = data[ts:te]
+            # import pdb; pdb.set_trace()
+            params, loss_i =  update(params, d_uvw, d_freq, d_vis, LEARNING_RATE)
+            loss_avg["epoch-%d"%epoch].append(np.asarray(loss_i))
+            if batch==0 and epoch==0:
+                logger.info("Starting loss is {}", loss_i)
 
+            if np.asarray(loss_i) < best_loss:
+                best_loss = loss_i 
+                best_model = params.copy()
 
-def main(args):
+        mean_loss = sum(loss_avg["epoch-%d"%epoch])/len(loss_avg["epoch-%d"%epoch])
 
-    global data_vis, data_ant1, data_ant2, basline_dict, data_uvw, data_nant, data_nbl, data_uniqtimes, data_uniqtime_indices, \
-           data_ntime, data_inttime, data_flag, data_flag_row, data_chan_freq, data_nchan, data_chanwidth, weight_vector, \
-           weight_vector_flattened, per_bl_sig
+        epoch_time = time.time() - start_time
+        logger.info("Epoch {} in {:0.3f} sec and loss is {:0.5f}".format(epoch, epoch_time, mean_loss))
+    
+    save_output(outdir+"/params.json", params, convert=True)
+    save_output(outdir+"/params_best.json", best_model, convert=True)
+    save_output(outdir+"/loss.json", loss_avg, convert=True)
 
-    ####### Read data from MS
-    tab = pt.table(args.ms).query("ANTENNA1 != ANTENNA2"); # INI: always exclude autocorrs for our purposes
-    data_vis = tab.getcol(args.col)
-    data_ant1 = tab.getcol('ANTENNA1')
-    data_ant2 = tab.getcol('ANTENNA2')
-    ant_unique = np.unique(np.hstack((data_ant1, data_ant2)))
-    baseline_dict = make_baseline_dictionary(ant_unique)
+    return
 
-    # Read uvw coordinates; necessary for computing the source coherency matrix
-    data_uvw = tab.getcol('UVW')
+def _main(exitstack):
+    
+    configure_loguru()
+    parser = create_parser()
+    args = parser.parse_args()
+    create_output_dirs(args.outdir)
+    update = custom_grads_update if args.custom_grads else jax_grads_update
+    data_vis, data_uvw, data_chan_freq, phasedir = load_data(args.msname, args.datacol, args.one_corr)
+    RT.ra0, RT.dec0 = phasedir
+    params = load_model(args.init_model)
+    train(params, data_uvw, data_chan_freq, data_vis, args.batch_size, args.outdir, update)
 
-    # get data from ANTENNA subtable
-    anttab = pt.table(args.ms+'::ANTENNA')
-    stations = anttab.getcol('STATION')
-    data_nant = len(stations)
-    data_nbl = int((data_nant*(data_nant-1))/2)
-    anttab.close()
-
-    # Obtain indices of unique times in 'TIME' column
-    data_uniqtimes, data_uniqtime_indices = np.unique(tab.getcol('TIME'), return_inverse=True)
-    data_ntime = data_uniqtimes.shape[0]
-    data_inttime = tab.getcol('EXPOSURE', 0, data_nbl)
-
-    # Get flag info from MS
-    data_flag = tab.getcol('FLAG')
-    data_flag_row = tab.getcol('FLAG_ROW')
-    data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
-
-    tab.close()
-
-    # get frequency info from SPECTRAL_WINDOW subtable
-    freqtab = pt.table(args.ms+'::SPECTRAL_WINDOW')
-    data_chan_freq = freqtab.getcol('CHAN_FREQ')[0]
-    data_nchan = freqtab.getcol('NUM_CHAN')[0]
-    data_chanwidth = freqtab.getcol('CHAN_WIDTH')[0,0]
-    freqtab.close()
-
-    # compute weight vector
-    weight_vector = np.zeros(data_vis.shape) # weight_vector same for both real and imag parts of the vis.
-    if noise_per_vis == None:
-        per_bl_sig = np.zeros((data_nbl))
-        bl_incr = 0;
-        for a1 in np.arange(data_nant):
-          for a2 in np.arange(a1+1,data_nant):
-            per_bl_sig[bl_incr] = (1./corr_eff) * np.sqrt((sefds[a1]*sefds[a2])/(2*data_chanwidth*data_inttime[bl_incr])) 
-            weight_vector[baseline_dict[(a1,a2)]] = 1./np.power(per_bl_sig[bl_incr], 2)
-            bl_incr += 1;
-    else:
-        weight_vector[:] = 1./np.power(noise_per_vis, 2)
-
-    weight_vector *= np.logical_not(data_flag)
-
-    # convert ndarrays to jax arrays
-    data_vis = jnp.asarray(data_vis)
-    data_uvw = jnp.asarray(data_uvw)
-    data_chan_freq = jnp.asarray(data_chan_freq)
-    weight_vector = jnp.asarray(weight_vector)
-    weight_vector_flattened = weight_vector.flatten()#[jnp.nonzero(weight_vector.flatten())]
-
-    # set up priors
-    prior_chain = PriorChain() \
-            .push(UniformPrior('fd', Smin, Smax)) \
-            .push(UniformPrior('l', dxmin*uas2rad, dxmax*uas2rad)) \
-            .push(UniformPrior('m', dymin*uas2rad, dymax*uas2rad))
-
-    # Run jaxns
-    print("Starting nested sampling...")
-    ns = NestedSampler(log_likelihood, prior_chain, num_live_points=nlive_factor*prior_chain.U_ndims)
-    results = jit(ns)(key=random.PRNGKey(seed), termination_frac=termination_frac)
-
-    print("Saving results to npz file...")
-    save_results(results, 'output.npz')
-
-    summary(results)
-    plot_diagnostics(results, save_name='diagnostics.png')
-    plot_cornerplot(results, save_name='cornerplot.png')
-
-    return 0
-
-if __name__ == '__main__':
-    args = create_parser().parse_args()
-    ret = main(args)
-    sys.exit(ret)
+@logger.catch
+def main():
+    with ExitStack() as stack:
+        _main(stack)

@@ -1,12 +1,31 @@
 #!/usr/bin/env python
 
 # INI: Adapted from casacore.tables.msutil.msregularize:
-
+import os
 import sys
 import argparse
 import numpy as np
 import pyrap.tables as pt
+import json
 
+def save_output(filname, mydict, convert=False):
+    if convert:
+        mydict_convert = {}
+        for key in mydict:
+            mydict_convert[key] = np.asarray(mydict[key]).tolist()
+    else:
+        mydict_convert = mydict
+
+    tf = open(filname, "w")
+    json.dump(mydict_convert,tf)
+    tf.close()
+
+def create_output_dirs(outdir):
+    """create ouput directory for log files and fitted information"""
+    if os.path.isdir(outdir):
+        print("Output directory already exit from previous run")
+    else:
+        os.mkdir(outdir)
 
 def regularize_ms(msname):
     """ Regularize an MS
