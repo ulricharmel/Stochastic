@@ -29,7 +29,7 @@ def loss_fn(params, data_uvw, data_chan_freq, data):
 
     return jnp.mean(diff.real*diff.real+diff.imag*diff.imag)
 
-#@jit
+@jit
 def update(params, data_uvw, data_chan_freq, data, LR):
     
     # print(make_jaxpr(jax.value_and_grad(loss_fn))(params, lm, data_uvw, data_chan_freq, data))
