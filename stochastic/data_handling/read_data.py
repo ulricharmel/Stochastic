@@ -1,6 +1,7 @@
 import pyrap.tables as pt
 import jax.numpy as jnp
 import numpy as np
+from loguru import logger
 
 def load_data(msname, datacol, single_corr):
     """Open the measurement set return the data
@@ -19,7 +20,8 @@ def load_data(msname, datacol, single_corr):
     if single_corr:
         data_vis = tab.getcol(datacol)[:,:,0:1]
     else:
-        data_vis = tab.getcol(datacol)
+        logger.warning("Only one correlation implemented for now. Will default to the first correlation")
+        data_vis = tab.getcol(datacol)[:,:,0:1]
     data_uvw = tab.getcol("UVW")
     tab.close()
 

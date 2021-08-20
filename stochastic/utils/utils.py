@@ -7,12 +7,19 @@ import argparse
 import numpy as np
 import pyrap.tables as pt
 import json
+from loguru import logger
 
-def save_output(filname, mydict, convert=False):
+def save_output(filname, mydict, convert=False, grad=False):
     if convert:
         mydict_convert = {}
         for key in mydict:
             mydict_convert[key] = np.asarray(mydict[key]).tolist()
+    elif grad:
+        mydict_convert = {}
+        for key in mydict:
+               mydict_convert[key] = {}
+               for key2 in mydict[key]:
+                   mydict_convert[key][key2] = np.asarray(mydict[key][key2]).tolist()
     else:
         mydict_convert = mydict
 
@@ -23,7 +30,7 @@ def save_output(filname, mydict, convert=False):
 def create_output_dirs(outdir):
     """create ouput directory for log files and fitted information"""
     if os.path.isdir(outdir):
-        print("Output directory already exit from previous run")
+        logger.info("Output directory already exit from previous run!")
     else:
         os.mkdir(outdir)
 

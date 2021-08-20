@@ -14,7 +14,7 @@ class InterceptHandler(logging.Handler):
         logger_opt.log(record.levelname, record.getMessage())
 
 
-def configure_loguru():
+def configure_loguru(outdir):
     logging.basicConfig(handlers=[InterceptHandler()], level="WARNING")
 
     # Put together a formatting string for the logger. Split into pieces in
@@ -32,7 +32,7 @@ def configure_loguru():
             {"sink": sys.stderr,
              "level": "INFO",
              "format": fmt},
-            {"sink": "{time:YYYYMMDD_HHmmss}_stochastic.log",
+            {"sink": outdir+"/{time:YYYYMMDD_HHmmss}_stochastic.log",
              "level": "DEBUG",
              "format": fmt}
         ],
