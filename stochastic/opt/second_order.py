@@ -34,7 +34,8 @@ def hvp(
     params: Any,
     uvw: jnp.DeviceArray,
     freq: jnp.DeviceArray,
-    data:jnp.DeviceArray
+    data:jnp.DeviceArray,
+    weights: jnp.DeviceArray
             ) -> jnp.DeviceArray:
     """Performs an efficient vector-Hessian (of `loss`) product.
     Args:
@@ -48,7 +49,7 @@ def hvp(
     evaluated with the current parameters.
     """
     _, unravel_fn = ravel_pytree(params)
-    loss_fn = lambda p: loss(p, uvw, freq, data)
+    loss_fn = lambda p: loss(p, uvw, freq, data, weights)
     return jax.jvp(jax.grad(loss_fn), [params], [unravel_fn(v)])[1]
 
 
@@ -57,7 +58,8 @@ def hessian_diag(
     params: Any,
     uvw: jnp.DeviceArray,
     freq: jnp.DeviceArray,
-    data: jnp.DeviceArray
+    data: jnp.DeviceArray,
+    weights: jnp.DeviceArray
             ) -> jnp.DeviceArray:
     """Computes the diagonal hessian of `loss` at (`inputs`, `targets`).
     Args:
@@ -72,7 +74,7 @@ def hessian_diag(
     """
     pp, _= ravel_pytree(params)
     
-    hess, unravel_fn  = ravel_pytree(hvp(loss, jnp.ones_like(pp), params, uvw, freq, data))
+    hess, unravel_fn  = ravel_pytree(hvp(loss, jnp.ones_like(pp), params, uvw, freq, data, weights))
     return unravel_fn(1./jnp.sqrt(jnp.abs(hess)))
 
 
@@ -83,6 +85,7 @@ def fisher_diag(
     uvw: jnp.ndarray,
     freq: jnp.ndarray,
     data: jnp.ndarray,
+    weights: jnp.ndarray
             ) -> jnp.DeviceArray:
     """Computes the diagonal of the (observed) Fisher information matrix.
     Args:
@@ -97,6 +100,6 @@ def fisher_diag(
     """
     _, unravel_fn = ravel_pytree(params)
     raveled  = jnp.square(
-                    ravel(jax.grad(negative_log_likelihood)(params, uvw, freq, data)))
+                    ravel(jax.grad(negative_log_likelihood)(params, uvw, freq, data, weights)))
     
     return unravel_fn(1./jnp.sqrt(raveled))

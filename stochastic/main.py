@@ -24,22 +24,26 @@ def _main(exitstack):
     parser = create_parser()
     args = parser.parse_args()
     create_output_dirs(args.outdir)
-    configure_loguru(args.outdir)
+    configure_loguru(args.outdir, args.name)
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     
-    kwags = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer]
+    kwags = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name]
     
     LR = init_learning_rates(args.lr)
-    data_vis, data_uvw, data_chan_freq, phasedir = load_data(args.msname, args.datacol, args.one_corr)
+    
+    data_vis, data_weights, data_uvw, data_chan_freq, phasedir = load_data(args.msname, args.datacol, args.weightcol, args.one_corr)
     RT.ra0, RT.dec0 = phasedir
+    RT.freq0 = args.freq0 if args.freq0 else data_chan_freq[0] 
+
     params = load_model(args.init_model)
     error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
     
     t0 = time.time()
-    train.train(params, data_uvw, data_chan_freq, data_vis, args.batch_size, args.outdir, error_fn, args.efrac, LR, *kwags)
-    logger.success("{:.2f} seconds taken for training.", time.time() - t0)
-
+    train.train(params, data_uvw, data_chan_freq, data_vis, data_weights, args.batch_size, args.outdir, error_fn, args.efrac, LR, *kwags)
+    ep_min, ep_hr = np.modf((time.time() - t0)/3600.)
+    logger.success("{}hr{:0.2f}mins taken for training.".format(int(ep_hr), ep_min*60))
+    
 @logger.catch
 def main():
     with ExitStack() as stack:

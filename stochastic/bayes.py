@@ -136,7 +136,7 @@ def main(args):
         per_bl_sig = np.zeros((data_nbl))
         bl_incr = 0;
         for a1 in np.arange(data_nant):
-          for a2 in np.arange(a1+1,data_nant):
+          for a2 in np.arange(a1+1,data_nant):cost function with weights
             per_bl_sig[bl_incr] = (1./corr_eff) * np.sqrt((sefds[a1]*sefds[a2])/(2*data_chanwidth*data_inttime[bl_incr])) 
             weight_vector[baseline_dict[(a1,a2)]] = 1./np.power(per_bl_sig[bl_incr], 2)
             bl_incr += 1;

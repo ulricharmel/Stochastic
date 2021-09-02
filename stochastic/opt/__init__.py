@@ -24,8 +24,9 @@ def forward(params, data_uvw, data_chan_freq):
     shape_params = params["shape_params"]
     stokes = params["stokes"]
     radec = params["radec"]
+    alpha = params["alpha"]
 
-    model_vis = fused_rime_sinlge_corr(radec, data_uvw, data_chan_freq, shape_params, stokes)
+    model_vis = fused_rime_sinlge_corr(radec, data_uvw, data_chan_freq, shape_params, stokes, alpha)
 
     return model_vis
 
