@@ -15,6 +15,8 @@ minus_two_pi_over_c = 2*jnp.pi/lightspeed # remove -2
 ra0 = 0 # overwite this in main
 dec0 = 0
 
+freq0 = 1e9 # reference frequence for source spectrum
+
 @jit
 def lm2radec(lm):
     #let say the ra and dec in radians

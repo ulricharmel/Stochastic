@@ -92,6 +92,13 @@ def brightness(stokes):
         stokes[:, 0] - stokes[:, 3]],
         axis=1)
 
+@jit
+def source_spectrum(alpha, freqs):
+    # for now we assume the refrencece frequency is the first frequency
+    # freq0 is imported from tools.py and it value is updated from main
+    frf = freqs/freq0
+    spectrum = frf**alpha
+    return spectrum
 
 @jit
 def coherency(nsrc, lm, uvw, frequency, stokes):
@@ -101,7 +108,7 @@ def coherency(nsrc, lm, uvw, frequency, stokes):
 
 
 @jit
-def fused_rime(radec, uvw, frequency, shape_params, stokes):
+def fused_rime(radec, uvw, frequency, shape_params, stokes, alpha):
 
     # Full expansion over source axis -- very memory hungry
 
@@ -127,21 +134,23 @@ def fused_rime(radec, uvw, frequency, shape_params, stokes):
     def body(s, vis):
         phdelay = phase_delay(lm[None, s], uvw, frequency)
         brness = brightness(stokes[None, s])
+        spectrum = source_spectrum(alpha[None, s], frequency)
         '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
                          brness)'''
         gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
-        coh = jnp.einsum("srf,srf,si->rfi",
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
                          phdelay,
                          gauss_shape,
-                         brness)
+                         brness,
+                         spectrum)
 
         return vis + coh.astype(dtype)
 
     return lax.fori_loop(0, source, body, vis)
 
 @jit
-def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes):
+def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
 
     # Full expansion over source axis -- very memory hungry
 
@@ -167,14 +176,16 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes):
     def body(s, vis):
         phdelay = phase_delay(lm[None, s], uvw, frequency)
         brness = stokes[None, s]
+        spectrum = source_spectrum(alpha[None, s], frequency)
         '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
                          brness)'''
         gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
-        coh = jnp.einsum("srf,srf,si->rfi",
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
                          phdelay,
                          gauss_shape,
-                         brness)
+                         brness,
+                         spectrum)
 
         return vis + coh.astype(dtype)
 

@@ -33,8 +33,9 @@ def test_rime(chunks):
     shape_params[:,2] = 0
 
     stokes = np.random.random((src, 4))
+    alpha = np.random.random((src, 1))
 
-    vis = fused_rime(lm, uvw, freq, shape_params, stokes)
+    vis = fused_rime(lm, uvw, freq, shape_params, stokes, alpha)
     print(vis)
 
 def test_rime_single_corr(chunks):
@@ -50,8 +51,9 @@ def test_rime_single_corr(chunks):
     shape_params[:,2] = 0
 
     stokes = np.random.random((src, 1))
+    alpha = np.random.random((src, 1))
 
-    vis = fused_rime_sinlge_corr(lm, uvw, freq, shape_params, stokes)
+    vis = fused_rime_sinlge_corr(lm, uvw, freq, shape_params, stokes, alpha)
     print(vis)
 
 
