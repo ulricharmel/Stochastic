@@ -13,7 +13,7 @@ import stochastic.opt.optimizers as optimizers
 LR = None
 
 @jit
-def loss_fn(params, data_uvw, data_chan_freq, data):
+def loss_fn(params, data_uvw, data_chan_freq, data, weights):
     """
     Compute the loss function
     Args:
@@ -25,16 +25,18 @@ def loss_fn(params, data_uvw, data_chan_freq, data):
             frequencies from the measurement set
         data (array)
             data visibilities
+        weights(array)
+            data weights
     Returns:  
         loss function
     """
     model_vis = forward(params, data_uvw, data_chan_freq)
     diff = data - model_vis
 
-    return jnp.mean(diff.real*diff.real+diff.imag*diff.imag)
+    return jnp.sum(diff.real*diff.real*weights + diff.imag*diff.imag*weights)/(2*weights.sum())
 
 @jit
-def log_likelihood(params, data_uvw, data_chan_freq, data):
+def log_likelihood(params, data_uvw, data_chan_freq, data, weights):
     """
     Compute the negative log_likelihood 
     Args:
@@ -46,13 +48,15 @@ def log_likelihood(params, data_uvw, data_chan_freq, data):
             frequencies from the measurement set
         data (array)
             data visibilities
+        weights(array)
+            data weights
     Returns:  
         negative log likelihood
     """
 
     model_vis = forward(params, data_uvw, data_chan_freq)
     diff = data - model_vis
-    chi2 = jnp.sum((diff.real*diff.real+diff.imag*diff.imag))
+    chi2 = jnp.sum((diff.real*diff.real*weights + diff.imag*diff.imag*weights))
     loglike = chi2/2.   # + other parts omitted for now. Especially the weights not included negative change to plus
 
     return loglike
@@ -92,20 +96,20 @@ def constraint_upd(opt_state):
     return params
 
 @jit
-def update(i, opt_state, data_uvw, data_chan_freq, data):
+def update(i, opt_state, data_uvw, data_chan_freq, data, weights):
     params = constraint_upd(opt_state)
-    loss, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data)
+    loss, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights)
     
     # logger.debug("Loss {},  grads, {}", grads, loss)
 
     return opt_update(i, LR, grads, opt_state), loss
 @jit
-def get_hessian(params, data_uvw, data_chan_freq, data):
+def get_hessian(params, data_uvw, data_chan_freq, data, weights):
     """returns the standard error based on hessian of log_like hood"""
-    return hessian_diag(log_likelihood, params, data_uvw, data_chan_freq, data)
+    return hessian_diag(log_likelihood, params, data_uvw, data_chan_freq, data, weights)
 
 @jit
-def get_fisher(params, data_uvw, data_chan_freq, data):
+def get_fisher(params, data_uvw, data_chan_freq, data, weights):
     """returns the error using an approximation of the fisher diag of the log_like hood"""
-    return fisher_diag(log_likelihood, params, data_uvw, data_chan_freq, data)
+    return fisher_diag(log_likelihood, params, data_uvw, data_chan_freq, data, weights)
 
