@@ -91,7 +91,7 @@ def nonnegative_projector(x):
 def constraint_upd(opt_state):
     params = get_params(opt_state)
     # params["stokes"] = ops.index_update(params["stokes"], ops.index[:,0], nonnegative_projector(params["stokes"][:,0]))
-    # params["shape_params"] = ops.index_update(params["shape_params"], ops.index[:,0:3], jnp.abs(params["shape_params"][:,0:3]))
+    # params["shape_params"] = ops.index_update(params["shape_params"], ops.index[:,0:2], jnp.abs(params["shape_params"][:,0:2]))
 
     return params
 

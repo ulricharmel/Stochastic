@@ -51,7 +51,7 @@ def train(params, data_uvw, data_chan_freq, data, weights, batch_size, outdir, e
     loss_previous = 0
     best_model = params.copy()
     loss_avg = {}
-    delta_ratio = 1.0
+    delta_ratio = 10.0
     STOP_INCREASING_LOSS = False
     
     jaxGrads.LR = LR
@@ -81,7 +81,7 @@ def train(params, data_uvw, data_chan_freq, data, weights, batch_size, outdir, e
                 DELTA_EPOCH -=1
                 if DELTA_EPOCH==0:
                     break
-            elif loss_i/loss_previous > delta_ratio and loss_previous < DELTA_LOSS:
+            elif (loss_i/loss_previous > delta_ratio) or ( loss_i>loss_previous and loss_previous < DELTA_LOSS):
                 STOP_INCREASING_LOSS = True
                 break
             else:
@@ -100,7 +100,7 @@ def train(params, data_uvw, data_chan_freq, data, weights, batch_size, outdir, e
         mean_loss = sum(loss_avg["epoch-%d"%epoch])/len(loss_avg["epoch-%d"%epoch])
 
         epoch_t = time.time() - start_time
-        logger.info("Epoch {} in {} secs, mean and final loss are {:0.5f} and {:0.5f}".format(epoch, epoch_t, mean_loss, loss_i))
+        logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}".format(epoch, epoch_t, mean_loss, loss_i))
     
         if DELTA_EPOCH == 0:
             logger.info("Early stoppage loss function not changing")
