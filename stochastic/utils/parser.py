@@ -20,6 +20,8 @@ def create_parser():
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
 
+    p.add_argument("--rowchunks", "-rc", help="size of the row chuns for xarray dataset", default=10000, type=int)
+
     p.add_argument("--learning-rate", "-lr", dest="lr", nargs="+", 
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
                                 default=[1e-3, 1e-6, 1e1, 0.2e0])
