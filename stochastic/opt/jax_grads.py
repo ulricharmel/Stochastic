@@ -33,7 +33,7 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights):
     model_vis = forward(params, data_uvw, data_chan_freq)
     diff = data - model_vis
 
-    return jnp.sum(diff.real*diff.real*weights + diff.imag*diff.imag*weights)/(2*weights.sum())
+    return jnp.vdot(diff*weights, diff).real/(2*weights.sum()) # return jnp.sum(diff.real*diff.real*weights + diff.imag*diff.imag*weights)/(2*weights.sum())
 
 @jit
 def log_likelihood(params, data_uvw, data_chan_freq, data, weights):
@@ -56,7 +56,7 @@ def log_likelihood(params, data_uvw, data_chan_freq, data, weights):
 
     model_vis = forward(params, data_uvw, data_chan_freq)
     diff = data - model_vis
-    chi2 = jnp.sum((diff.real*diff.real*weights + diff.imag*diff.imag*weights))
+    chi2 = jnp.vdot(diff*weights, diff).real
     loglike = chi2/2.   # + other parts omitted for now. Especially the weights not included negative change to plus
 
     return loglike
@@ -91,7 +91,7 @@ def nonnegative_projector(x):
 def constraint_upd(opt_state):
     params = get_params(opt_state)
     # params["stokes"] = ops.index_update(params["stokes"], ops.index[:,0], nonnegative_projector(params["stokes"][:,0]))
-    # params["shape_params"] = ops.index_update(params["shape_params"], ops.index[:,0:3], jnp.abs(params["shape_params"][:,0:3]))
+    # params["shape_params"] = ops.index_update(params["shape_params"], ops.index[:,0:2], jnp.abs(params["shape_params"][:,0:2]))
 
     return params
 

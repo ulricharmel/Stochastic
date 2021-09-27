@@ -12,7 +12,7 @@ def create_parser():
     
     p.add_argument("--init-model", "-im", type=str, help="initial model file", required=True)
     
-    p.add_argument("--batch_size", "-bs", default=2016, type=int, help="Batch size")
+    p.add_argument("--batch-size", "-bs", default=2016, type=int, help="Batch size")
     
     p.add_argument('--outdir', "-od", type=str, default="stochastic",  help="output directory, default is created in current working directory")
 

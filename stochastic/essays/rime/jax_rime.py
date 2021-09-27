@@ -191,3 +191,32 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
 
     return lax.fori_loop(0, source, body, vis)
 
+@jit
+def apply_di_gains_diag(data, gains, a1, a2, row_map):
+    
+    nrows, chan, corr = data.shape
+    dtype = jnp.result_type(data.dtype, gains.dtype, jnp.complex64)
+
+    with loops.Scope() as l1:
+        l1.c_data = jnp.empty((nrows, chan, corr), dtype)
+
+        for row in l1.range(nrows):
+            t_m  = row_map[row]
+            a1_m, a2_m = a1[row], a2[row]
+
+            for f in l1.range(chan):
+                
+                cr00 = data[row, f, 0]
+                cr11 = data[row, f, -1]
+
+                g00 = gains[t_m, f, a1_m, 0, 0]
+                g11 = gains[t_m, f, a1_m, 1, 1]
+
+                gh00 = gains[t_m, f, a2_m, 0, 0].conjugate()
+                gh11 = gains[t_m, f, a2_m, 1, 1].conjugate()
+                
+                l1.c_data = ops.index_update(l1.c_data, (row, f, 0), g00*cr00*gh00)
+                l1.c_data = ops.index_update(l1.c_data, (row, f, -1), g11*cr11*gh11)
+                
+    
+    return l1.c_data

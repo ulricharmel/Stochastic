@@ -8,7 +8,7 @@ from stochastic import configure_loguru
 
 from stochastic.utils.utils import create_output_dirs
 from stochastic.utils.parser import create_parser, init_learning_rates
-from stochastic.data_handling.read_data import load_data, load_model
+from stochastic.data_handling.read_data import set_xds, load_model
 
 import stochastic.opt.train as train
 import stochastic.opt.jax_grads as jaxGrads
@@ -32,7 +32,7 @@ def _main(exitstack):
     
     LR = init_learning_rates(args.lr)
     
-    data_vis, data_weights, data_uvw, data_chan_freq, phasedir = load_data(args.msname, args.datacol, args.weightcol, args.one_corr)
+    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr)
     RT.ra0, RT.dec0 = phasedir
     RT.freq0 = args.freq0 if args.freq0 else data_chan_freq[0] 
 
@@ -40,7 +40,7 @@ def _main(exitstack):
     error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
     
     t0 = time.time()
-    train.train(params, data_uvw, data_chan_freq, data_vis, data_weights, args.batch_size, args.outdir, error_fn, args.efrac, LR, *kwags)
+    train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *kwags)
     ep_min, ep_hr = np.modf((time.time() - t0)/3600.)
     logger.success("{}hr{:0.2f}mins taken for training.".format(int(ep_hr), ep_min*60))
     
