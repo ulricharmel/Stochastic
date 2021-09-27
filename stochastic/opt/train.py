@@ -10,6 +10,8 @@ from loguru import logger
 
 get_iter = lambda epoch, num_batchs, batch : epoch*num_batchs + batch 
 
+NO_OPTUNA = True
+
 def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *kwags):
     """
     Use Stochastic gradient decent and try to fit for the parameters
@@ -38,7 +40,8 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *kwags)
     # For now we will aussume a perfect measuremnt set
     
     nsamples = xds.dims['row']
-    assert nsamples%batch_size == 0, "Please choose a batch size that equaly divides the number of rows"
+    # assert nsamples%batch_size == 0, "Please choose a batch size that equaly divides the number of rows"
+    allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
     num_batches = len(inds)
@@ -47,7 +50,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *kwags)
     loss_previous = 0
     best_model = params.copy()
     loss_avg = {}
-    delta_ratio = 10.0
+    delta_ratio = 1.2
     STOP_INCREASING_LOSS = False
     
     jaxGrads.LR = LR
@@ -62,7 +65,8 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *kwags)
 
         for batch in range(num_batches):
             ts, te = d_inds[batch]
-            d_vis, d_weights, d_uvw = getbatch(ts, te, xds)
+            indices = allindices[ts:te]
+            d_vis, d_weights, d_uvw = getbatch(indices, xds)
             d_freq = data_chan_freq.copy()
 
             iter = get_iter(epoch, num_batches, batch)
@@ -76,7 +80,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *kwags)
                 DELTA_EPOCH -=1
                 if DELTA_EPOCH==0:
                     break
-            elif (loss_i/loss_previous > delta_ratio) or ( loss_i>loss_previous and loss_previous < DELTA_LOSS):
+            elif (loss_i>loss_previous and loss_previous < DELTA_LOSS):
                 STOP_INCREASING_LOSS = True
                 break
             else:
@@ -106,13 +110,14 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *kwags)
         else:
             pass
     
-    params = jaxGrads.constraint_upd(opt_state)
-    errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights)
-    logger.debug(f"Best parameters obtained after {best_iter} iterations!")
+    if NO_OPTUNA:
+        params = jaxGrads.constraint_upd(opt_state)
+        errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights)
+        logger.debug(f"Best parameters obtained after {best_iter} iterations!")
 
-    save_output(f"{outdir}/{prefix}-params.json", params, convert=True)
-    save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
-    save_output(f"{outdir}/{prefix}-params_best.json", best_model, convert=True)
-    save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
-    
-    return
+        save_output(f"{outdir}/{prefix}-params.json", params, convert=True)
+        save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
+        save_output(f"{outdir}/{prefix}-params_best.json", best_model, convert=True)
+        save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
+        
+    return best_loss

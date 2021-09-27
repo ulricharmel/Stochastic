@@ -16,7 +16,7 @@ setup(
     license='GNU GPL v2',
     packages=find_packages(include=['stochastic','stochastic.*']),
     entry_points={
-        'console_scripts': ['stochastic=stochastic.main:main']
+        'console_scripts': ['stochastic=stochastic.main:main', 'stochastic-opt=stochastic.opt_hyper_params:main']
     },
     keywords='stochastic',
     classifiers=[

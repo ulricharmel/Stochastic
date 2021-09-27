@@ -24,35 +24,37 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr):
         singlecorr (bool)
             set the single_corrr argument
     Return:
-        Xarray dataset
+        Xarray dataset, data_chan_freq, phasedir, rmap
     """
 
     global datacol, weightcol, single_corr
     datacol, weightcol, single_corr = data_col, weight_col, singlecorr
 
     freqtab = pt.table(msname+'::SPECTRAL_WINDOW', ack=False)
-    data_chan_freq = freqtab.getcol('CHAN_FREQ')[0]
+    data_chan_freq = jnp.asarray(freqtab.getcol('CHAN_FREQ')[0])
     freqtab.close()
 
     fieldtab = pt.table(msname+"::FIELD", ack=False)
     phasedir = (fieldtab.getcol("PHASE_DIR"))[0,0,:]
     fieldtab.close()
 
-    columns = ["FLAG", "FLAG_ROW", "UVW", datacol, weightcol]
-    xds = xds_from_ms(msname, columns=columns, chunks={"row":rowchunks})[0]
-
-    data_chan_freq = jnp.asarray(data_chan_freq)
+    columns = ["FLAG", "FLAG_ROW", "UVW", "TIME", "ANTENNA1", "ANTENNA2", datacol, weightcol]
+    xds = xds_from_ms(msname, columns=columns, chunks={"row":-1})[0]
+    
+    timecol = xds.TIME.compute().data
+    unique  = np.unique(timecol)
+    rmap = {x: i for i, x in enumerate(unique)}
+    rowmap = jnp.asarray(np.fromiter(list(map(rmap.__getitem__, timecol)), int))
+    antenna1 = jnp.asarray(xds.ANTENNA1.compute().data)
+    antenna2 = jnp.asarray(xds.ANTENNA2.compute().data)
 
     return xds, data_chan_freq, phasedir
 
-def getbatch(ts, te, xds):
+def getbatch(inds, xds):
     """
     Return the data for the given batch
     Args:
-        ts (int)
-            starting row index
-        te (int)
-            ending row index
+        inds (random indices for batch)
         xds (dataset)
             Xarray dataset
     Return:
@@ -60,23 +62,23 @@ def getbatch(ts, te, xds):
     """
 
     if single_corr:
-        data_vis = xds[datacol][ts:te,:,0:1].compute().data
-        data_flag = xds.FLAG[ts:te,:,0:1].compute().data
-        data_flag_row = xds.FLAG_ROW[ts:te].compute().data
+        data_vis = xds[datacol][inds][:,:,0:1].compute().data
+        data_flag = xds.FLAG[inds][:,:,0:1].compute().data
+        data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
-        data_weights = xds[weightcol][ts:te].compute().data
+        data_weights = xds[weightcol][inds].compute().data
         if data_weights.ndim == 3:
             data_weights = data_weights[:,:,0:1]
         else:
             data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
     else:
-        data_vis = xds[datacol][ts:te,:,0:1].compute().data
-        data_flag = xds.FLAG[ts:te,:,0:1].compute().data
-        data_flag_row = xds.FLAG_ROW[ts:te].compute().data
+        data_vis = xds[datacol][inds][:,:,0:1].compute().data
+        data_flag = xds.FLAG[inds][:,:,0:1].compute().data
+        data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
-        data_weights = xds[weightcol][ts:te].compute().data
+        data_weights = xds[weightcol][inds].compute().data
         if data_weights.ndim == 3:
             data_weights = data_weights[:,:,0:1]
         else:
@@ -85,7 +87,7 @@ def getbatch(ts, te, xds):
     data_weights.setflags(write=1)
     data_weights *= np.logical_not(data_flag)
 
-    data_uvw = xds.UVW[ts:te].compute().data
+    data_uvw = xds.UVW[inds].compute().data
 
     data_vis = jnp.asarray(data_vis)
     data_weights = jnp.asarray(data_weights)

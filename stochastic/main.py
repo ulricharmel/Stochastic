@@ -32,7 +32,7 @@ def _main(exitstack):
     
     LR = init_learning_rates(args.lr)
     
-    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, args.rowchunks, args.one_corr)
+    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr)
     RT.ra0, RT.dec0 = phasedir
     RT.freq0 = args.freq0 if args.freq0 else data_chan_freq[0] 
 

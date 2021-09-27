@@ -12,15 +12,13 @@ def create_parser():
     
     p.add_argument("--init-model", "-im", type=str, help="initial model file", required=True)
     
-    p.add_argument("--batch_size", "-bs", default=2016, type=int, help="Batch size")
+    p.add_argument("--batch-size", "-bs", default=2016, type=int, help="Batch size")
     
     p.add_argument('--outdir', "-od", type=str, default="stochastic",  help="output directory, default is created in current working directory")
 
     p.add_argument('--name', "-name", type=str, default="out",  help="prefix to use for output files")
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
-
-    p.add_argument("--rowchunks", "-rc", help="size of the row chuns for xarray dataset", default=10000, type=int)
 
     p.add_argument("--learning-rate", "-lr", dest="lr", nargs="+", 
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
