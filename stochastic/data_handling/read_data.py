@@ -9,7 +9,7 @@ datacol = "DATA"
 weightcol = "WEIGHT"
 single_corr = True
 
-def set_xds(msname, data_col, weight_col, rowchunks, singlecorr):
+def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column):
     """
     Read the measuremenet in an xarray dataset
     Args:
@@ -23,6 +23,8 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr):
             rows chunk size for xarray
         singlecorr (bool)
             set the single_corrr argument
+        dummy_column (str)
+            column for dummy visibilities
     Return:
         Xarray dataset, data_chan_freq, phasedir, rmap
     """
@@ -37,8 +39,10 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr):
     fieldtab = pt.table(msname+"::FIELD", ack=False)
     phasedir = (fieldtab.getcol("PHASE_DIR"))[0,0,:]
     fieldtab.close()
-
     columns = ["FLAG", "FLAG_ROW", "UVW", "TIME", "ANTENNA1", "ANTENNA2", datacol, weightcol]
+    if dummy_column:
+        columns.append(dummy_column)
+    
     xds = xds_from_ms(msname, columns=columns, chunks={"row":-1})[0]
     
     timecol = xds.TIME.compute().data
@@ -50,15 +54,19 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr):
 
     return xds, data_chan_freq, phasedir
 
-def getbatch(inds, xds):
+def getbatch(inds, xds, d_params, dummy_column):
     """
     Return the data for the given batch
     Args:
         inds (random indices for batch)
         xds (dataset)
             Xarray dataset
+        d_params (array or None)
+            dummy parameters
+        dummy_column (str or None)
+            dummy visibilities column
     Return:
-        data_vis, data_weights, data_uvw
+        data_vis, data_weights, data_uvw, d_kargs
     """
 
     if single_corr:
@@ -67,7 +75,12 @@ def getbatch(inds, xds):
         data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
-        data_weights = xds[weightcol][inds].compute().data
+        if dummy_column:
+            dummy_vis = jnp.asarray(xds[dummy_column][inds][:,:,0:1].compute().data)
+        else:
+            dummy_vis = None
+
+        data_weights = xds[weightcol][inds].compute().data.real
         if data_weights.ndim == 3:
             data_weights = data_weights[:,:,0:1]
         else:
@@ -78,7 +91,12 @@ def getbatch(inds, xds):
         data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
-        data_weights = xds[weightcol][inds].compute().data
+        if dummy_column:
+            dummy_vis = jnp.asarray(xds[dummy_column][inds][:,:,0:1].compute().data)
+        else:
+            dummy_vis = None
+
+        data_weights = xds[weightcol][inds].compute().data.real
         if data_weights.ndim == 3:
             data_weights = data_weights[:,:,0:1]
         else:
@@ -93,13 +111,20 @@ def getbatch(inds, xds):
     data_weights = jnp.asarray(data_weights)
     data_uvw = jnp.asarray(data_uvw)
 
-    return data_vis, data_weights, data_uvw
+    d_kwargs = {}
+    d_kwargs["dummy_params"] = d_params
+    d_kwargs["dummy_col_vis"] = dummy_vis
 
-def load_model(modelfile):
+    return data_vis, data_weights, data_uvw, d_kwargs
+
+def load_model(modelfile, dummy_model):
     """load model save a npy file.
         Array with shape (nsources x flux x ra x dec x emaj, emin x pa)
     Args:
-        numpy file
+        modelfile
+            numpy array file
+        dummy_model 
+            numpy array file
     Returns:
         dictionary with the intial parameters    
     """
@@ -116,7 +141,22 @@ def load_model(modelfile):
     params["shape_params"] = jnp.asarray(shape_params)
     params["alpha"] = jnp.asarray(alpha)
 
-    return params
+    if dummy_model:
+        d_model = np.load(dummy_model)
+        d_stokes = d_model[:,0:1]
+        d_radec = d_model[:,1:3]
+        d_shape_params = d_model[:,3:6]
+        d_alpha = d_model[:,6:]
+
+        d_params = {}
+        d_params["stokes"] = jnp.asarray(d_stokes)
+        d_params["radec"]  = jnp.asarray(d_radec)
+        d_params["shape_params"] = jnp.asarray(d_shape_params)
+        d_params["alpha"] = jnp.asarray(d_alpha)
+    else:
+        d_params = None
+
+    return params, d_params
 
 
 
