@@ -46,7 +46,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
-    num_batches = min(len(inds), 1000)
+    num_batches = min(len(inds), 500)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     best_loss, best_iter = 10000.0, 0
