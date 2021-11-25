@@ -53,11 +53,13 @@ def train_optax(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *
     allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
-    num_batches = min(len(inds), 500)
+    num_batches = min(len(inds), 2000)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
-    converge = False
+    CONV = False
+    STALL = False
+
     best_loss, best_iter = 10000.0, 0
     best_model = params.copy()
 
@@ -92,12 +94,12 @@ def train_optax(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *
             xk, _ = ravel_pytree(params)
             eps = np.linalg.norm(xk - x0) / np.linalg.norm(xk)
             if eps < DELTA_LOSS:
-                converge = True 
+                CONV = True 
                 break
         
             eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
             if eps < DELTA_LOSS:
-                converge = True
+                STALL = True
                 break
 
             if np.asarray(loss_i) < best_loss:
@@ -115,28 +117,32 @@ def train_optax(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *
         epoch_t = time.time() - start_time
         logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}".format(epoch, epoch_t, mean_loss, loss_i))
     
-        if converge:
-            logger.info("Parameters converge or loss is not improving")
+        if CONV:
+            logger.info("Parameters converge")
+            break
+        
+        if STALL:
+            logger.info("Loss stall")
             break
     
 
     errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
     logger.debug(f"Best parameters obtained after {best_iter} iterations!")
 
-    params_radec = {}
-    params_radec["stokes"] = params["stokes"]
-    params_radec["radec"]  = lm2radec(params["lm"])
-    params_radec["alpha"]  = params["alpha"]
+    # params_radec = {}
+    # params_radec["stokes"] = params["stokes"]
+    # params_radec["radec"]  = lm2radec(params["lm"])
+    # params_radec["alpha"]  = params["alpha"]
 
-    best_model_radec = {}
-    best_model_radec["stokes"] = best_model["stokes"]
-    best_model_radec["radec"]  = lm2radec(best_model["lm"])
-    best_model_radec["alpha"]  = best_model["alpha"]
+    # best_model_radec = {}
+    # best_model_radec["stokes"] = best_model["stokes"]
+    # best_model_radec["radec"]  = lm2radec(best_model["lm"])
+    # best_model_radec["alpha"]  = best_model["alpha"]
 
-    save_output(f"{outdir}/{prefix}-params.json", params_radec, convert=True)
-    save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
-    save_output(f"{outdir}/{prefix}-params_best.json", best_model_radec, convert=True)
-    save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
+    # save_output(f"{outdir}/{prefix}-params.json", params_radec, convert=True)
+    # save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
+    # save_output(f"{outdir}/{prefix}-params_best.json", best_model_radec, convert=True)
+    # save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
     
     return best_loss
 
