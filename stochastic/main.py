@@ -30,14 +30,16 @@ def _main(exitstack):
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     
-    if args.dummy_model and args.dummy_column:
-        jaxGrads.forward_model = opt.forward_d_model_col
-    elif args.dummy_model  and args.dummy_column==None:
-        jaxGrads.forward_model = opt.forward_d_model
-    elif args.dummy_model==None and args.dummy_column:
-        jaxGrads.forward_model = opt.forward_d_col
-    else:
-        jaxGrads.forward_model = opt.forward
+    # if args.dummy_model and args.dummy_column:
+    #     jaxGrads.forward_model = opt.forward_d_model_col
+    # elif args.dummy_model  and args.dummy_column==None:
+    #     jaxGrads.forward_model = opt.forward_d_model
+    # elif args.dummy_model==None and args.dummy_column:
+    #     jaxGrads.forward_model = opt.forward_d_col
+    # else:
+    #     jaxGrads.forward_model = opt.forward
+
+    jaxGrads.forward_model = opt.foward_pnts_lm_d_col
 
     xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column)
     RT.ra0, RT.dec0 = phasedir

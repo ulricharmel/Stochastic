@@ -59,12 +59,12 @@ def init_learning_rates(lr):
         dictionary (stokes, radec, shape_params, spi)
     """
 
-    assert len(lr)==1 or len(lr) == 4, "Either set a constant learning rate or set a different learning rate for each parameter"
+    assert len(lr)==1 or len(lr) == 3, "Either set a constant learning rate or set a different learning rate for each parameter"
 
     if len(lr) == 1:
-        return dict(stokes=float(lr[0]), radec=float(lr[0]), shape_params=float(lr[0]), alpha=float(lr[0]))
+        return dict(stokes=float(lr[0]), radec=float(lr[0]), alpha=float(lr[0]))
     else:
-        return dict(stokes=float(lr[0]), radec=float(lr[1]), shape_params=float(lr[2]), alpha=float(lr[3]))
+        return dict(stokes=float(lr[0]), radec=float(lr[1]), alpha=float(lr[2]))
 
 
 
