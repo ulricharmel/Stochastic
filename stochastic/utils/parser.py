@@ -26,9 +26,9 @@ def create_parser():
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
 
-    p.add_argument("--learning-rate", "-lr", dest="lr", nargs="+", 
+    p.add_argument("--learning-rate", "-lr", dest="lr", type=float,
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
-                                default=[1e-3, 1e-6, 1e1, 0.2e0])
+                                default=1e-3)
 
     p.add_argument("--error-functon", "-ef", dest="error_func", help="which function to use for error estimation, diagonals of Hessian or Fisher matrix", 
                       default="hessian", choices=["hessian", "fisher"])

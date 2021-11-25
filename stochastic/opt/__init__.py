@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax import lax, jit, random
 from jax.test_util import check_grads
 from jax import make_jaxpr
-from stochastic.essays.rime.jax_rime import fused_rime, fused_rime_sinlge_corr
+from stochastic.essays.rime.jax_rime import fused_rime, fused_rime_sinlge_corr, rime_pnts_lm_single_corr
 
 @jit
 def forward(params, data_uvw, data_chan_freq, kwargs):
@@ -129,3 +129,60 @@ def forward_d_col(params, data_uvw, data_chan_freq, kwargs):
     dummy_col_vis = kwargs["dummy_col_vis"]
 
     return model_vis + dummy_col_vis
+
+@jit
+def foward_pnts_lm_d_col(params, data_uvw, data_chan_freq, kwargs):
+    """
+    Compute the model visibilities using jax rime
+    No beam for now. Assume we have, lm instead of radec
+    Args:
+        Params (dictionary)
+            flux, lm, spi
+        data_uvw (array)
+            uvw coordinates from the measurement set
+        data_chan_freq (array)
+            frequencies from the measurement set
+        **kwargs (dictionary)
+            extra args
+    Returns:  
+        Model visibilities (array)
+    """
+
+    stokes = params["stokes"]
+    radec = params["radec"]
+    alpha = params["alpha"]
+
+    model_vis = rime_pnts_lm_single_corr(radec, data_uvw, data_chan_freq, stokes, alpha)
+
+    dummy_col_vis = kwargs["dummy_col_vis"]
+
+    return model_vis + dummy_col_vis
+
+
+@jit
+def foward_pnts_lm(params, data_uvw, data_chan_freq, kwargs):
+    """
+    Compute the model visibilities using jax rime
+    No beam for now. Assume we have, lm instead of radec
+    Args:
+        Params (dictionary)
+            flux, lm, spi
+        data_uvw (array)
+            uvw coordinates from the measurement set
+        data_chan_freq (array)
+            frequencies from the measurement set
+        **kwargs (dictionary)
+            extra args
+    Returns:  
+        Model visibilities (array)
+    """
+
+    stokes = params["stokes"]
+    lm = params["lm"]
+    alpha = params["alpha"]
+
+    model_vis = rime_pnts_lm_single_corr(lm, data_uvw, data_chan_freq, stokes, alpha)
+
+    return model_vis
+
+

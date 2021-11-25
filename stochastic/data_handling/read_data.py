@@ -132,26 +132,26 @@ def load_model(modelfile, dummy_model):
     model = np.load(modelfile)
     stokes = model[:,0:1]
     radec = model[:,1:3]
-    shape_params = model[:,3:6]
-    alpha = model[:,6:]
+    # shape_params = model[:,3:6]
+    alpha = model[:,3:]
 
     params = {}
     params["stokes"] = jnp.asarray(stokes)
     params["radec"]  = jnp.asarray(radec)
-    params["shape_params"] = jnp.asarray(shape_params)
+    # params["shape_params"] = jnp.asarray(shape_params)
     params["alpha"] = jnp.asarray(alpha)
 
     if dummy_model:
         d_model = np.load(dummy_model)
         d_stokes = d_model[:,0:1]
         d_radec = d_model[:,1:3]
-        d_shape_params = d_model[:,3:6]
-        d_alpha = d_model[:,6:]
+        # d_shape_params = d_model[:,3:6]
+        d_alpha = d_model[:,3:]
 
         d_params = {}
         d_params["stokes"] = jnp.asarray(d_stokes)
         d_params["radec"]  = jnp.asarray(d_radec)
-        d_params["shape_params"] = jnp.asarray(d_shape_params)
+        # d_params["shape_params"] = jnp.asarray(d_shape_params)
         d_params["alpha"] = jnp.asarray(d_alpha)
     else:
         d_params = None

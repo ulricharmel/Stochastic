@@ -11,7 +11,7 @@ from stochastic.utils.parser import create_parser, init_learning_rates
 from stochastic.data_handling.read_data import set_xds, load_model
 
 import stochastic.opt.train as train
-import stochastic.opt.jax_grads as jaxGrads
+import stochastic.opt.optax_grads as jaxGrads
 # from stochastic.opt.custom_grads import update as custom_grads_update 
 import stochastic.essays.rime.tools as RT
 
@@ -30,20 +30,13 @@ def _main(exitstack):
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     
-    if args.dummy_model and args.dummy_column:
-        jaxGrads.forward_model = opt.forward_d_model_col
-    elif args.dummy_model  and args.dummy_column==None:
-        jaxGrads.forward_model = opt.forward_d_model
-    elif args.dummy_model==None and args.dummy_column:
-        jaxGrads.forward_model = opt.forward_d_col
-    else:
-        jaxGrads.forward_model = opt.forward
+    jaxGrads.forward_model = opt.foward_pnts_lm_d_col
 
     xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column)
     RT.ra0, RT.dec0 = phasedir
     RT.freq0 = args.freq0 if args.freq0 else data_chan_freq[0] 
 
-    LR = init_learning_rates(args.lr)
+    # LR = init_learning_rates(args.lr)
 
     params, d_params = load_model(args.init_model, args.dummy_model)
     error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
@@ -52,7 +45,7 @@ def _main(exitstack):
     # extra_args = dict(d_params=d_params, dummy_column=args.dummy_column, forwardm=forwardm)
 
     t0 = time.time()
-    train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
+    train.train_optax(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, args.lr, *opt_args, 
                                                         d_params=d_params, dummy_column=args.dummy_column)
     ep_min, ep_hr = np.modf((time.time() - t0)/3600.)
     logger.success("{}hr{:0.2f}mins taken for training.".format(int(ep_hr), ep_min*60))
