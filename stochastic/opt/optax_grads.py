@@ -78,16 +78,25 @@ def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
 # TODO test different optimisers and learning rate scheduling
 # Use optimizers to set optimizer initialization and update functions
 
-def init_optimizer(params, opt="adam", learning_rate=1e-2):
+def map_nested_fn(fn):
+  '''Recursively apply `fn` to the key-value pairs of a nested dict'''
+  def map_fn(nested_dict):
+    return {k: (map_fn(v) if isinstance(v, dict) else fn(k, v))
+            for k, v in nested_dict.items()}
+  return map_fn
+
+def init_optimizer(params, opt="adam", LR=dict(stokes=1e-2, lm=1e-5, alpha=1e-2)):
     global optimizer
+    label_fn = map_nested_fn(lambda k, _: k)
+
     if opt == "adam":
-        optimizer = optax.adam(learning_rate, b1=0.9, b2=0.999, eps=1e-8)
+        optimizer = optax.multi_transform({"stokes": optax.adam(LR["stokes"]), "lm": optax.adam(LR["lm"]), "alpha": optax.adam(LR["lm"])}, label_fn)
         logger.info("ADAM optimizer initialised!")
     elif opt == "sgd":
-        optimizer = optax.sgd(learning_rate)
+        optimizer = optax.multi_transform({"stokes": optax.sgd(LR["stokes"]), "lm": optax.sgd(LR["lm"]), "alpha": optax.sgd(LR["lm"])}, label_fn)
         logger.info("SGD optimizer initialised!")
     elif opt == "momentum":
-        optimizer = optax.momentum(learning_rate, mass=0.8)
+        optimizer = optax.multi_transform({"stokes": optax.momentum(LR["stokes"]), "lm": optax.momentum(LR["lm"]), "alpha": optax.momentum(LR["lm"])}, label_fn)
         logger.info("Momentum optimizer initialised!")
     else:
         raise NotImplementedError("Choose between adam, momentum and sgd")

@@ -195,9 +195,9 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
 
 
 @jit
-def rime_pnts_lm_single_corr(radec, uvw, frequency, stokes, alpha):
+def rime_pnts_lm_single_corr(lm, uvw, frequency, stokes, alpha):
 
-    lm = radec2lm(radec)
+    # lm = radec2lm(radec)
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]

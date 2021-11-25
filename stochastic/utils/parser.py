@@ -26,9 +26,9 @@ def create_parser():
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
 
-    p.add_argument("--learning-rate", "-lr", dest="lr", type=float,
+    p.add_argument("--learning-rate", "-lr", dest="lr", type=float, nargs="+",
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
-                                default=1e-3)
+                                default=[1e-2, 1e-5, 1e-2])
 
     p.add_argument("--error-functon", "-ef", dest="error_func", help="which function to use for error estimation, diagonals of Hessian or Fisher matrix", 
                       default="hessian", choices=["hessian", "fisher"])
@@ -59,12 +59,12 @@ def init_learning_rates(lr):
         dictionary (stokes, radec, shape_params, spi)
     """
 
-    assert len(lr)==1 or len(lr) == 4, "Either set a constant learning rate or set a different learning rate for each parameter"
+    assert len(lr)==1 or len(lr) == 3, "Either set a constant learning rate or set a different learning rate for each parameter"
 
     if len(lr) == 1:
-        return dict(stokes=float(lr[0]), radec=float(lr[0]), shape_params=float(lr[0]), alpha=float(lr[0]))
+        return dict(stokes=float(lr[0]), lm=float(lr[0]), shape_params=float(lr[0]))
     else:
-        return dict(stokes=float(lr[0]), radec=float(lr[1]), shape_params=float(lr[2]), alpha=float(lr[3]))
+        return dict(stokes=float(lr[0]), lm=float(lr[1]), shape_params=float(lr[2]))
 
 
 
