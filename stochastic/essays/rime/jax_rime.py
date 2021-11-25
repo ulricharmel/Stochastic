@@ -97,8 +97,10 @@ def source_spectrum(alpha, freqs):
     # for now we assume the refrencece frequency is the first frequency
     # freq0 is imported from tools.py and it value is updated from main
     frf = freqs/freq0
-    spectrum = frf**alpha
-    return spectrum
+    logfr = jnp.log10(frf)
+    
+    spectrum = frf ** sum([a * jnp.power(logfr, n) for n, a in enumerate(alpha)])
+    return spectrum[None, :]
 
 @jit
 def coherency(nsrc, lm, uvw, frequency, stokes):
@@ -134,7 +136,7 @@ def fused_rime(radec, uvw, frequency, shape_params, stokes, alpha):
     def body(s, vis):
         phdelay = phase_delay(lm[None, s], uvw, frequency)
         brness = brightness(stokes[None, s])
-        spectrum = source_spectrum(alpha[None, s], frequency)
+        spectrum = source_spectrum(alpha[s], frequency)
         '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
                          brness)'''
@@ -176,7 +178,7 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
     def body(s, vis):
         phdelay = phase_delay(lm[None, s], uvw, frequency)
         brness = stokes[None, s]
-        spectrum = source_spectrum(alpha[None, s], frequency)
+        spectrum = source_spectrum(alpha[s], frequency)
         '''coh = jnp.einsum("srf,si->rfi",
                          phdelay,
                          brness)'''

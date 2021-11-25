@@ -15,6 +15,8 @@ import stochastic.opt.jax_grads as jaxGrads
 # from stochastic.opt.custom_grads import update as custom_grads_update 
 import stochastic.essays.rime.tools as RT
 
+import stochastic.opt as opt
+
 # again, this only works on startup!
 from jax.config import config
 config.update("jax_enable_x64", True)
@@ -28,19 +30,30 @@ def _main(exitstack):
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     
-    kwags = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name]
-    
-    LR = init_learning_rates(args.lr)
-    
-    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr)
+    if args.dummy_model and args.dummy_column:
+        jaxGrads.forward_model = opt.forward_d_model_col
+    elif args.dummy_model  and args.dummy_column==None:
+        jaxGrads.forward_model = opt.forward_d_model
+    elif args.dummy_model==None and args.dummy_column:
+        jaxGrads.forward_model = opt.forward_d_col
+    else:
+        jaxGrads.forward_model = opt.forward
+
+    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column)
     RT.ra0, RT.dec0 = phasedir
     RT.freq0 = args.freq0 if args.freq0 else data_chan_freq[0] 
 
-    params = load_model(args.init_model)
+    LR = init_learning_rates(args.lr)
+
+    params, d_params = load_model(args.init_model, args.dummy_model)
     error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
-    
+
+    opt_args = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name, args.report_freq]
+    # extra_args = dict(d_params=d_params, dummy_column=args.dummy_column, forwardm=forwardm)
+
     t0 = time.time()
-    train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *kwags)
+    train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
+                                                        d_params=d_params, dummy_column=args.dummy_column)
     ep_min, ep_hr = np.modf((time.time() - t0)/3600.)
     logger.success("{}hr{:0.2f}mins taken for training.".format(int(ep_hr), ep_min*60))
     

@@ -11,8 +11,14 @@ def create_parser():
     p.add_argument("--weightcol", "-wc", dest="weightcol", type=str, help="datacol to fit", default="WEIGHT")
     
     p.add_argument("--init-model", "-im", type=str, help="initial model file", required=True)
+
+    p.add_argument("--dummy-model", "-dm", type=str, help="dummy model file")
+
+    p.add_argument("--dummy-column", "-dmc", type=str, help="dummy model column")
     
     p.add_argument("--batch-size", "-bs", default=2016, type=int, help="Batch size")
+
+    p.add_argument("--report-freq", "-rf", default=10, type=int, help="Reporting frequency")
     
     p.add_argument('--outdir', "-od", type=str, default="stochastic",  help="output directory, default is created in current working directory")
 
