@@ -10,12 +10,14 @@ from stochastic.opt import forward
 from stochastic.opt.second_order import hessian_diag, fisher_diag
 from stochastic.essays.rime.tools import *
 from loguru import logger
+import numpy as np
 
 # from jax.experimental import optimizers
 import stochastic.opt.optimizers as optimizers
 
 forward_model = forward
 optimizer = None
+LR = None
 
 @jit
 def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
@@ -39,10 +41,24 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
     Returns:  
         loss function
     """
+
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
+
+    # import pdb; pdb.set_trace()
     diff = data - model_vis
 
-    return jnp.vdot(diff*weights, diff).real/(2*weights.sum()) # return jnp.sum(diff.real*diff.real*weights + diff.imag*diff.imag*weights)/(2*weights.sum())
+    l1 = jnp.vdot(diff*weights, diff).real/(2*weights.sum())
+
+    # targets = jnp.vstack((model_vis.real, model_vis.imag))
+    # preds  = jnp.vstack((data.real, data.imag))
+    # wei =  jnp.vstack((weights, weights))
+
+    # l2 = jnp.sum(wei*(preds - targets)**2)/(wei.sum())
+
+    # l3 = jnp.mean((preds-targets)**2)
+
+    return l1
+    
 
 @jit
 def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
@@ -90,13 +106,13 @@ def init_optimizer(params, opt="adam", LR=dict(stokes=1e-2, lm=1e-5, alpha=1e-2)
     label_fn = map_nested_fn(lambda k, _: k)
 
     if opt == "adam":
-        optimizer = optax.multi_transform({"stokes": optax.adam(LR["stokes"]), "lm": optax.adam(LR["lm"]), "alpha": optax.adam(LR["lm"])}, label_fn)
+        optimizer = optax.multi_transform({"stokes": optax.adam(LR["stokes"]), "lm": optax.adam(LR["lm"]), "alpha": optax.adam(LR["alpha"])}, label_fn)
         logger.info("ADAM optimizer initialised!")
     elif opt == "sgd":
-        optimizer = optax.multi_transform({"stokes": optax.sgd(LR["stokes"]), "lm": optax.sgd(LR["lm"]), "alpha": optax.sgd(LR["lm"])}, label_fn)
+        optimizer = optax.multi_transform({"stokes": optax.sgd(LR["stokes"]), "lm": optax.sgd(LR["lm"]), "alpha": optax.sgd(LR["alpha"])}, label_fn)
         logger.info("SGD optimizer initialised!")
     elif opt == "momentum":
-        optimizer = optax.multi_transform({"stokes": optax.momentum(LR["stokes"]), "lm": optax.momentum(LR["lm"]), "alpha": optax.momentum(LR["lm"])}, label_fn)
+        optimizer = optax.multi_transform({"stokes": optax.momentum(LR["stokes"]), "lm": optax.momentum(LR["lm"]), "alpha": optax.momentum(LR["alpha"])}, label_fn)
         logger.info("Momentum optimizer initialised!")
     else:
         raise NotImplementedError("Choose between adam, momentum and sgd")
@@ -105,25 +121,47 @@ def init_optimizer(params, opt="adam", LR=dict(stokes=1e-2, lm=1e-5, alpha=1e-2)
     
     return opt_state
 
-@jax.jit
+@jit
 def optax_step(opt_state, params, data_uvw, data_chan_freq, data, weights, kwargs):
     loss_value, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
     updates, opt_state = optimizer.update(grads, opt_state, params)
     params = optax.apply_updates(params, updates)
     return params, opt_state, loss_value
 
-@jax.jit
-def grads_updates(ups, vps, mps, lr):
+#------------------------Add adam ontop of svrg, let see--------------------------------------#
+opt_init = opt_update = get_params = None 
+
+# TODO test different optimisers and learning rate scheduling
+# Use optimizers to set optimizer initialization and update functions
+
+def init_optimizer(opt="adam"):
+    global opt_init, opt_update, get_params
+    if opt == "adam":
+        opt_init, opt_update, get_params = optimizers.adam(b1=0.9, b2=0.999, eps=1e-8)
+        logger.info("SVRG + ADAM optimizer initialised!")
+    elif opt == "sgd":
+        opt_init, opt_update, get_params = optimizers.sgd()
+        logger.info("SVRG + SGD optimizer initialised!")
+    elif opt == "momentum":
+        opt_init, opt_update, get_params = optimizers.momentum(mass=0.8)
+        logger.info("SVRG + Momentum optimizer initialised!")
+    else:
+        raise NotImplementedError("Choose between adam, momentum and sgd")
+    
+    return opt_init, opt_update, get_params
+
+@jit
+def grads_updates(ups, vps, mps):
     """
     compute the corrected gradient for srvg
     Returns:
         Updated parameters, with same structure, shape and type as `params`.
     """
     return jax.tree_multimap(
-      lambda u, v, m : -lr*(u - v + m), ups, vps, mps
+      lambda u, v, m: (u - v + m), ups, vps, mps
     )
 
-@jax.jit
+@jit
 def mean_updates(params, N):
 
     return jax.tree_multimap(
@@ -131,39 +169,59 @@ def mean_updates(params, N):
     )
 
 
-@jax.jit
-def svrg_step(minibatch, lr, params, data_uvw, data_chan_freq, data, weights, kwargs):
+# @jit
+def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, weights, kwargs):
     
-    mean_grad = jax.grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
+    mgrad = jax.grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
 
     batchsize = data.shape[0]
     n_steps = batchsize//minibatch
     params_tt = params
+    steps = np.random.permutation(np.array(list(range(n_steps))))
     
     flatten, func =  ravel_pytree(params)
     params_k = func(flatten*0)
 
     loss = []
+    iter, opt_state = opt_info
+
+    # import pdb; pdb.set_trace()
     
-    for tt in range(0, batchsize, minibatch):
+    for ind, tt in enumerate(steps):
         data_uvw_tt = data_uvw[tt*minibatch:(tt+1)*minibatch]
         data_tt = data[tt*minibatch:(tt+1)*minibatch]
         weights_tt = weights[tt*minibatch:(tt+1)*minibatch]
         kwargs_tt = {}
         kwargs_tt["dummy_col_vis"] = kwargs["dummy_col_vis"][tt*minibatch:(tt+1)*minibatch]
         
-        grad_tt = grads_updates(jax.grad(loss_fn)(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt) , 
-                                jax.grad(loss_fn)(params, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt) , mean_grad, lr)
+        loss_tt, ugrad = jax.value_and_grad(loss_fn)(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
+        vgrad = jax.grad(loss_fn)(params, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
+
+        grad_tt = grads_updates(ugrad, vgrad, mgrad)
+
+        iter = iter+1
+        opt_state = opt_update(iter, LR, grad_tt, opt_state)
+        params_tt = get_params(opt_state)
         
-        params_tt = optax.apply_updates(params_tt, grad_tt)
-
-        params_k = optax.apply_updates(params_k, params_tt)
+        # params_tmp = optax.apply_updates(params_tt, grad_tt)
+        # loss_tt = loss_fn(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
+        # if loss_tmp < loss_tt:
+        #     params_tt = params_tmp
+        #     # params_k = optax.apply_updates(params_k, params_tt)
     
-        loss.append(loss_fn(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt))
+        #     loss.append(loss_tmp)
+        
+        # if ind == 0:
+        loss.append(loss_tt)
     
-    mean_params = mean_updates(params_k, n_steps)
+    opt_info = (iter, opt_state)
+    # mean_params = mean_updates(params_k, n_steps)
 
-    return mean_params, loss
+    # loss_mf = loss_fn(mean_params, data_uvw, data_chan_freq, data, weights, kwargs)
+
+    # import pdb; pdb.set_trace()
+
+    return opt_info, params_tt, loss
 
 @jit
 def get_hessian(params, data_uvw, data_chan_freq, data, weights, kwargs):

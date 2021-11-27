@@ -1,5 +1,6 @@
 import argparse
 import os
+from collections import OrderedDict
 
 def create_parser():
     p = argparse.ArgumentParser()
@@ -25,6 +26,8 @@ def create_parser():
     p.add_argument('--name', "-name", type=str, default="out",  help="prefix to use for output files")
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
+
+    p.add_argument("--svrg", "-sv", help="use svrg",  action="store_true")
 
     p.add_argument("--learning-rate", "-lr", dest="lr", type=float, nargs="+",
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
@@ -62,9 +65,9 @@ def init_learning_rates(lr):
     assert len(lr)==1 or len(lr) == 3, "Either set a constant learning rate or set a different learning rate for each parameter"
 
     if len(lr) == 1:
-        return dict(stokes=float(lr[0]), lm=float(lr[0]), shape_params=float(lr[0]))
+        return dict(alpha=float(lr[0]), radec=float(lr[0]), stokes=float(lr[0]))
     else:
-        return dict(stokes=float(lr[0]), lm=float(lr[1]), shape_params=float(lr[2]))
+        return dict(alpha=float(lr[2]), radec=float(lr[1]), stokes=float(lr[0]))
 
 
 

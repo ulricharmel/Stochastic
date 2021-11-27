@@ -195,9 +195,9 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
 
 
 @jit
-def rime_pnts_lm_single_corr(lm, uvw, frequency, stokes, alpha):
+def rime_pnts_lm_single_corr(radec, uvw, frequency, stokes, alpha):
 
-    # lm = radec2lm(radec)
+    lm = radec2lm(radec)
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]
@@ -211,6 +211,34 @@ def rime_pnts_lm_single_corr(lm, uvw, frequency, stokes, alpha):
     def body(s, vis):
         phdelay = phase_delay(lm[None, s], uvw, frequency)
         brness = stokes[None, s]
+        spectrum = source_spectrum(alpha[s], frequency)
+
+        coh = jnp.einsum("srf,si,sf->rfi",
+                         phdelay,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+    
+    return lax.fori_loop(0, source, body, vis)
+
+@jit
+def rime_pnts_fuse(radec, uvw, frequency, stokes, alpha):
+
+    lm = radec2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = brightness(stokes[None, s])
         spectrum = source_spectrum(alpha[s], frequency)
 
         coh = jnp.einsum("srf,si,sf->rfi",

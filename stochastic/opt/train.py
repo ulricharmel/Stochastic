@@ -9,6 +9,7 @@ import stochastic.opt.jax_grads as jaxGrads
 from stochastic.opt.optimizers import optimizer
 from stochastic.utils.utils import save_output
 from stochastic.data_handling.read_data import getbatch
+from collections import OrderedDict
 from jax.flatten_util import ravel_pytree
 
 from loguru import logger
@@ -40,7 +41,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
     """
 
     EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ = opt_args
-    d_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
+    dummy_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
     params = {}
     params["stokes"] = params_radec["stokes"]
@@ -78,7 +79,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
         for batch in range(num_batches):
             ts, te = d_inds[batch]
             indices = allindices[ts:te]
-            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, d_params, dummy_column)
+            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, dummy_params, dummy_column)
             d_freq = data_chan_freq.copy()
 
             iter = get_iter(epoch, num_batches, batch)
@@ -147,8 +148,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
     
     return best_loss
 
-
-def train_svrg(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_args, **extra_args):
+def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_args, **extra_args):
     """
     Use Stochastic gradient decent and try to fit for the parameters
     Compute the loss function
@@ -172,12 +172,12 @@ def train_svrg(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, 
     """
 
     EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ = opt_args
-    d_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
+    dummy_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
-    params = {}
-    params["stokes"] = params_radec["stokes"]
-    params["lm"]  = radec2lm(params_radec["radec"])
-    params["alpha"] = params_radec["alpha"]
+    # params = OrderedDict()
+    # params["alpha"] = params_radec["alpha"]
+    # params["lm"]  = radec2lm(params_radec["radec"])
+    # params["stokes"] = params_radec["stokes"]
 
     # For now we will aussume a perfect measuremnt set
     
@@ -186,19 +186,27 @@ def train_svrg(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, 
     allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
-    num_batches = min(len(inds), 500)
+    num_batches = min(len(inds), 2000)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
-    converge = False
+    CONV = False
+    STALL = False
+
     best_loss, best_iter = 10000.0, 0
     best_model = params.copy()
 
     loss_p = 0
     loss_avg = {}
 
-    optimizer = optaxGrads.init_optimizer(OPTIMIZER, LR)
-    opt_state = optimizer.init(params)
+    optaxGrads.LR = LR
+    optaxGrads.init_optimizer(OPTIMIZER)
+    opt_state = optaxGrads.opt_init(params)
+    iter = 0
+    opt_info = (iter, opt_state)
+
+    minibatch = batch_size // 10
+    logger.info(f"Minibatch size is {minibatch}")
 
     for epoch in range(EPOCHS):
         start_time = time.time()
@@ -209,29 +217,32 @@ def train_svrg(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, 
         for batch in range(num_batches):
             ts, te = d_inds[batch]
             indices = allindices[ts:te]
-            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, d_params, dummy_column)
+            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, dummy_params, dummy_column)
             d_freq = data_chan_freq.copy()
 
-            iter = get_iter(epoch, num_batches, batch)
+            # iter = get_iter(epoch, num_batches, batch)
             
             x0, _ = ravel_pytree(params)
-            params, opt_state, loss_i = optaxGrads.optax_step(opt_state, optimizer, params, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
+            opt_info, params, loss_values = optaxGrads.svrg_step(opt_info, minibatch, LR, params, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
+
+            loss_avg["epoch-%d"%epoch].extend(np.asarray(loss_values))
+            loss_i = loss_values[-1]
             
-            loss_avg["epoch-%d"%epoch].append(np.asarray(loss_i))
-            
+            # import pdb; pdb.set_trace()
+
             if batch==0 and epoch==0:
-                logger.info("Starting loss is {}", loss_i)
+                logger.info(f"Starting loss {loss_values[0]} current loss {loss_i}")
 
             # check convergence
             xk, _ = ravel_pytree(params)
             eps = np.linalg.norm(xk - x0) / np.linalg.norm(xk)
             if eps < DELTA_LOSS:
-                converge = True 
+                CONV = True 
                 break
         
             eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
             if eps < DELTA_LOSS:
-                converge = True
+                STALL = True
                 break
 
             if np.asarray(loss_i) < best_loss:
@@ -249,33 +260,37 @@ def train_svrg(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, 
         epoch_t = time.time() - start_time
         logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}".format(epoch, epoch_t, mean_loss, loss_i))
     
-        if converge:
-            logger.info("Parameters converge or loss is not improving")
+        if CONV:
+            logger.info("Parameters converge")
+            break
+        
+        if STALL:
+            logger.info("Loss stall")
             break
     
 
     errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
     logger.debug(f"Best parameters obtained after {best_iter} iterations!")
 
-    params_radec = {}
-    params_radec["stokes"] = params["stokes"]
-    params_radec["radec"]  = lm2radec(params["lm"])
-    params_radec["alpha"]  = params["alpha"]
+    # params_radec = {}
+    # params_radec["stokes"] = params["stokes"]
+    # params_radec["radec"]  = lm2radec(params["lm"])
+    # params_radec["alpha"]  = params["alpha"]
 
-    best_model_radec = {}
-    best_model_radec["stokes"] = best_model["stokes"]
-    best_model_radec["radec"]  = lm2radec(best_model["lm"])
-    best_model_radec["alpha"]  = best_model["alpha"]
+    # best_model_radec = {}
+    # best_model_radec["stokes"] = best_model["stokes"]
+    # best_model_radec["radec"]  = lm2radec(best_model["lm"])
+    # best_model_radec["alpha"]  = best_model["alpha"]
 
-    save_output(f"{outdir}/{prefix}-params.json", params_radec, convert=True)
+    save_output(f"{outdir}/{prefix}-params.json", params, convert=True)
     save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
-    save_output(f"{outdir}/{prefix}-params_best.json", best_model_radec, convert=True)
+    save_output(f"{outdir}/{prefix}-params_best.json", best_model, convert=True)
     save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
     
     return best_loss
 
 
-def train(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_args, **extra_args):
+def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_args, **extra_args):
     """
     Use Stochastic gradient decent and try to fit for the parameters
     Compute the loss function
@@ -301,10 +316,10 @@ def train(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *
     EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ = opt_args
     d_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
-    params = {}
-    params["stokes"] = params_radec["stokes"]
-    params["lm"]  = radec2lm(params_radec["radec"])
-    params["alpha"] = params_radec["alpha"]
+    # params = OrderedDict()
+    # params["alpha"] = params_radec["alpha"]
+    # params["lm"]  = radec2lm(params_radec["radec"])
+    # params["stokes"] = params_radec["stokes"]
     # For now we will aussume a perfect measuremnt set
     
     nsamples = xds.dims['row']
@@ -316,7 +331,7 @@ def train(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     best_loss, best_iter = 10000.0, 0
-    loss_previous = 0
+    loss_p = 0
     best_model = params.copy()
     loss_avg = {}
     delta_ratio = 1.2
@@ -338,55 +353,67 @@ def train(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *
             d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, d_params, dummy_column)
             d_freq = data_chan_freq.copy()
 
+            x0, _ = ravel_pytree(params)
             iter = get_iter(epoch, num_batches, batch)
             opt_state, loss_i =  jaxGrads.update(iter, opt_state, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
             loss_avg["epoch-%d"%epoch].append(np.asarray(loss_i))
             
+            # import pdb; pdb.set_trace()
             if batch==0 and epoch==0:
                 logger.info("Starting loss is {}", loss_i)
-                loss_previous = loss_i 
-            elif np.abs(loss_i - loss_previous) < DELTA_LOSS:
-                DELTA_EPOCH -=1
-                if DELTA_EPOCH==0:
-                    break
-            elif (loss_i>loss_previous and loss_previous < DELTA_LOSS):
-                STOP_INCREASING_LOSS = True
+
+            # check convergence
+            params = jaxGrads.constraint_upd(opt_state)
+            xk, _ = ravel_pytree(params)
+            eps = np.linalg.norm(xk - x0) / np.linalg.norm(xk)
+            if eps < DELTA_LOSS:
+                CONV = True 
                 break
-            else:
-                pass
+        
+            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            if eps < DELTA_LOSS:
+                STALL = True
+                break
 
             if np.asarray(loss_i) < best_loss:
                 best_loss = loss_i 
-                best_model = jaxGrads.constraint_upd(opt_state)
+                best_model = params
                 best_iter = iter
             
             if batch in report_batches:
                 logger.info(f"Epoch {epoch}: after passing through {batch*100./num_batches:.2f}% of the data loss is {loss_i}")
             
-            loss_previous = loss_i
-        
+            loss_p = loss_i
+            
         mean_loss = sum(loss_avg["epoch-%d"%epoch])/len(loss_avg["epoch-%d"%epoch])
 
         epoch_t = time.time() - start_time
         logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}".format(epoch, epoch_t, mean_loss, loss_i))
     
-        if DELTA_EPOCH == 0:
-            logger.info("Early stoppage loss function not changing")
+        if CONV:
+            logger.info("Parameters converge")
             break
-        elif STOP_INCREASING_LOSS:
-            logger.info("Loss value starts increasing, early stoppage to avoid over fitting!")
+        
+        if STALL:
+            logger.info("Loss stall")
             break
-        else:
-            pass
     
-    
-    params = jaxGrads.constraint_upd(opt_state)
-    # errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
+    errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
     logger.debug(f"Best parameters obtained after {best_iter} iterations!")
+
+    # params_radec = {}
+    # params_radec["stokes"] = params["stokes"]
+    # params_radec["radec"]  = lm2radec(params["lm"])
+    # params_radec["alpha"]  = params["alpha"]
+
+    # best_model_radec = {}
+    # best_model_radec["stokes"] = best_model["stokes"]
+    # best_model_radec["radec"]  = lm2radec(best_model["lm"])
+    # best_model_radec["alpha"]  = best_model["alpha"]
 
     save_output(f"{outdir}/{prefix}-params.json", params, convert=True)
     save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
     save_output(f"{outdir}/{prefix}-params_best.json", best_model, convert=True)
-    # save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
+    save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
         
     return best_loss

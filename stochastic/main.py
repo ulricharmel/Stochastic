@@ -31,8 +31,8 @@ def _main(exitstack):
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     
-    jaxGrads.forward_model = opt.foward_pnts_lm_d_col
-    optaxGrads.forward_model = opt.foward_pnts_lm_d_col
+    jaxGrads.forward_model = opt.foward_pnts_lm
+    optaxGrads.forward_model = opt.foward_pnts_lm
 
     xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column)
     RT.ra0, RT.dec0 = phasedir
@@ -41,17 +41,23 @@ def _main(exitstack):
     LR = init_learning_rates(args.lr)
 
     params, d_params = load_model(args.init_model, args.dummy_model)
-    error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
+    
 
     opt_args = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name, args.report_freq]
     # extra_args = dict(d_params=d_params, dummy_column=args.dummy_column, forwardm=forwardm)
+    
+    # print(minibatch)
 
     t0 = time.time()
-    # train.train_optax(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
-    #                                                     d_params=d_params, dummy_column=args.dummy_column)
-
-    train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
+    if args.svrg:
+        error_fn = optaxGrads.get_hessian if args.error_func == "hessian" else optaxGrads.get_fisher
+        train.train_svrg(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
+                                                           d_params=d_params, dummy_column=args.dummy_column)
+    else:
+        error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
+        train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
                                                         d_params=d_params, dummy_column=args.dummy_column)
+    
     ep_min, ep_hr = np.modf((time.time() - t0)/3600.)
     logger.success("{}hr{:0.2f}mins taken for training.".format(int(ep_hr), ep_min*60))
     

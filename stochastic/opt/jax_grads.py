@@ -7,6 +7,8 @@ from stochastic.opt.second_order import hessian_diag, fisher_diag
 from stochastic.essays.rime.tools import *
 from loguru import logger
 
+import optax
+
 # from jax.experimental import optimizers
 import stochastic.opt.optimizers as optimizers
 
@@ -36,9 +38,23 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
         loss function
     """
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
+
+    # import pdb; pdb.set_trace()
     diff = data - model_vis
 
-    return jnp.vdot(diff*weights, diff).real/(2*weights.sum()) # return jnp.sum(diff.real*diff.real*weights + diff.imag*diff.imag*weights)/(2*weights.sum())
+    l1 = jnp.vdot(diff*weights, diff).real/(2*weights.sum())
+
+    # targets = jnp.vstack((model_vis.real, model_vis.imag))
+    # preds  = jnp.vstack((data.real, data.imag))
+    # wei =  jnp.vstack((weights, weights))
+
+    # l2 = jnp.sum(wei*(preds - targets)**2)/(wei.sum())
+
+    # l3 = jnp.mean((preds-targets)**2)
+
+    return l1
+
+    
 
 @jit
 def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
@@ -108,6 +124,8 @@ def constraint_upd(opt_state):
 def update(i, opt_state, data_uvw, data_chan_freq, data, weights, kwargs):
     params = constraint_upd(opt_state)
     loss, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
+
+    # import pdb; pdb.set_trace()
     
     # logger.debug("Loss {},  grads, {}", grads, loss)
 

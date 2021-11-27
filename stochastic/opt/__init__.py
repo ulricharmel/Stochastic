@@ -149,10 +149,10 @@ def foward_pnts_lm_d_col(params, data_uvw, data_chan_freq, kwargs):
     """
 
     stokes = params["stokes"]
-    lm = params["lm"]
+    radec = params["radec"]
     alpha = params["alpha"]
 
-    model_vis = rime_pnts_lm_single_corr(lm, data_uvw, data_chan_freq, stokes, alpha)
+    model_vis = rime_pnts_lm_single_corr(radec, data_uvw, data_chan_freq, stokes, alpha)
 
     dummy_col_vis = kwargs["dummy_col_vis"]
 
@@ -178,10 +178,10 @@ def foward_pnts_lm(params, data_uvw, data_chan_freq, kwargs):
     """
 
     stokes = params["stokes"]
-    lm = params["lm"]
+    radec = params["radec"]
     alpha = params["alpha"]
 
-    model_vis = rime_pnts_lm_single_corr(lm, data_uvw, data_chan_freq, stokes, alpha)
+    model_vis = rime_pnts_lm_single_corr(radec, data_uvw, data_chan_freq, stokes, alpha)
 
     return model_vis
 
