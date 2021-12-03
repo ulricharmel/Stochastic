@@ -1,6 +1,6 @@
 # Module that does all the dirty work.
 # The trainging goes here.
-from stochastic.essays.rime.tools import radec2lm, lm2radec
+from stochastic.rime.tools import radec2lm, lm2radec
 from stochastic.opt import forward
 import numpy as np
 import time
@@ -223,7 +223,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
             # iter = get_iter(epoch, num_batches, batch)
             
             x0, _ = ravel_pytree(params)
-            opt_info, params, loss_values = optaxGrads.svrg_step(opt_info, minibatch, LR, params, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
+            opt_info, params, loss_values = optaxGrads.svrg_step(opt_info, minibatch, LR, params, d_uvw, d_freq, d_vis, d_weights, DELTA_LOSS, d_kwargs)
 
             loss_avg["epoch-%d"%epoch].extend(np.asarray(loss_values))
             loss_i = loss_values[-1]
@@ -241,7 +241,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
                 break
         
             eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
-            if eps < DELTA_LOSS:
+            if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
                 STALL = True
                 break
 
@@ -258,7 +258,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
         mean_loss = sum(loss_avg["epoch-%d"%epoch])/len(loss_avg["epoch-%d"%epoch])
 
         epoch_t = time.time() - start_time
-        logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}".format(epoch, epoch_t, mean_loss, loss_i))
+        logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}, iter {}".format(epoch, epoch_t, mean_loss, loss_i, opt_info[0]))
     
         if CONV:
             logger.info("Parameters converge")
@@ -335,7 +335,9 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     best_model = params.copy()
     loss_avg = {}
     delta_ratio = 1.2
-    STOP_INCREASING_LOSS = False
+
+    CONV = False
+    STALL = False
     
     jaxGrads.LR = LR
     jaxGrads.init_optimizer(OPTIMIZER)

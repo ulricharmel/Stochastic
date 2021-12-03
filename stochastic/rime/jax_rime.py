@@ -4,7 +4,7 @@ from jax import jit, vmap
 from jax import lax, ops
 from jax.experimental import loops
 
-from stochastic.essays.rime.tools import *
+from stochastic.rime.tools import *
 
 @jit
 def gaussian(uvw, frequency, shape_params):

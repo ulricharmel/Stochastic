@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax import lax, jit, random
 from jax.test_util import check_grads
 from jax import make_jaxpr
-from stochastic.essays.rime.jax_rime import fused_rime, fused_rime_sinlge_corr, rime_pnts_lm_single_corr
+from stochastic.rime.jax_rime import fused_rime, fused_rime_sinlge_corr, rime_pnts_lm_single_corr
 
 @jit
 def forward(params, data_uvw, data_chan_freq, kwargs):

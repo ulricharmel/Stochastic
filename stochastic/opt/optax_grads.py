@@ -8,7 +8,7 @@ from jax.flatten_util import ravel_pytree
 
 from stochastic.opt import forward
 from stochastic.opt.second_order import hessian_diag, fisher_diag
-from stochastic.essays.rime.tools import *
+from stochastic.rime.tools import *
 from loguru import logger
 import numpy as np
 
@@ -170,7 +170,7 @@ def mean_updates(params, N):
 
 
 # @jit
-def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, weights, kwargs):
+def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, weights, eps, kwargs):
     
     mgrad = jax.grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
 
@@ -192,7 +192,7 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
         data_tt = data[tt*minibatch:(tt+1)*minibatch]
         weights_tt = weights[tt*minibatch:(tt+1)*minibatch]
         kwargs_tt = {}
-        kwargs_tt["dummy_col_vis"] = kwargs["dummy_col_vis"][tt*minibatch:(tt+1)*minibatch]
+        kwargs_tt["dummy_col_vis"] = None #kwargs["dummy_col_vis"][tt*minibatch:(tt+1)*minibatch]
         
         loss_tt, ugrad = jax.value_and_grad(loss_fn)(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
         vgrad = jax.grad(loss_fn)(params, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
@@ -213,6 +213,9 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
         
         # if ind == 0:
         loss.append(loss_tt)
+
+        if loss_tt < eps:
+            break
     
     opt_info = (iter, opt_state)
     # mean_params = mean_updates(params_k, n_steps)

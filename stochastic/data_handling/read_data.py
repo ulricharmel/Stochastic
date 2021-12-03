@@ -76,7 +76,8 @@ def getbatch(inds, xds, d_params, dummy_column):
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
         if dummy_column:
-            dummy_vis = jnp.asarray(xds[dummy_column][inds][:,:,0:1].compute().data)
+            dummy_vis = xds[dummy_column][inds][:,:,0:1].compute().data
+            data_vis -= dummy_vis
         else:
             dummy_vis = None
 
@@ -92,7 +93,8 @@ def getbatch(inds, xds, d_params, dummy_column):
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
         if dummy_column:
-            dummy_vis = jnp.asarray(xds[dummy_column][inds][:,:,0:1].compute().data)
+            dummy_vis = xds[dummy_column][inds][:,:,0:1].compute().data
+            data_vis -= dummy_vis
         else:
             dummy_vis = None
 

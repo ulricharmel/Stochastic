@@ -4,7 +4,7 @@ from jax import lax, jit, random, ops
 from jax.test_util import check_grads
 from stochastic.opt import forward
 from stochastic.opt.second_order import hessian_diag, fisher_diag
-from stochastic.essays.rime.tools import *
+from stochastic.rime.tools import *
 from loguru import logger
 
 import optax
