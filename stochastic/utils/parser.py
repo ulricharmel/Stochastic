@@ -26,6 +26,8 @@ def create_parser():
     p.add_argument('--name', "-name", type=str, default="out",  help="prefix to use for output files")
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
+    
+    p.add_argument("--log-spectra", "-logsp", help="use log spectra for wsclean components",  action="store_true")
 
     p.add_argument("--svrg", "-sv", help="use svrg",  action="store_true")
 

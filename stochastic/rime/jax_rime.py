@@ -6,6 +6,9 @@ from jax.experimental import loops
 
 from stochastic.rime.tools import *
 
+from jax.config import config
+config.update("jax_enable_x64", True)
+
 @jit
 def gaussian(uvw, frequency, shape_params):
     # https://en.wikipedia.org/wiki/Full_width_at_half_maximum
@@ -93,20 +96,150 @@ def brightness(stokes):
         axis=1)
 
 @jit
-def source_spectrum(alpha, freqs):
-    # for now we assume the refrencece frequency is the first frequency
-    # freq0 is imported from tools.py and it value is updated from main
-    frf = freqs/freq0
-    logfr = jnp.log10(frf)
-    
-    spectrum = frf ** sum([a * jnp.power(logfr, n) for n, a in enumerate(alpha)])
-    return spectrum[None, :]
+def dummy_brightness():
+    return jnp.stack([jnp.array([1.]), jnp.array([0.]), jnp.array([0.]), jnp.array([1.])], axis=1)
+
+@jit
+def dummy_brightness_sc():
+    return jnp.array([[1.]])
 
 @jit
 def coherency(nsrc, lm, uvw, frequency, stokes):
     return jnp.einsum("srf,si->srfi",
                       phase_delay(lm, uvw, frequency),
                       brightness(stokes))
+
+@jit 
+def fused_wsclean_rime(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = radec2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = dummy_brightness()
+        spectrum = wsclean_spectra(stokes[s, 0], alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
+
+@jit 
+def fused_wsclean_log_rime(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = radec2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = dummy_brightness()
+        spectrum = wsclean_log_spectra(stokes[s, 0], alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
+
+@jit 
+def fused_wsclean_rime_sc(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = radec2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = dummy_brightness_sc()
+        spectrum = wsclean_spectra(stokes[s, 0], alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
+
+@jit 
+def fused_wsclean_log_rime_sc(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = radec2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = dummy_brightness_sc()
+        spectrum = wsclean_log_spectra(stokes[s, 0], alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
 
 
 @jit

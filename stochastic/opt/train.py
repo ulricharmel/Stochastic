@@ -79,7 +79,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
         for batch in range(num_batches):
             ts, te = d_inds[batch]
             indices = allindices[ts:te]
-            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, dummy_params, dummy_column)
+            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, dummy_params, dummy_column, data_chan_freq)
             d_freq = data_chan_freq.copy()
 
             iter = get_iter(epoch, num_batches, batch)
@@ -217,7 +217,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
         for batch in range(num_batches):
             ts, te = d_inds[batch]
             indices = allindices[ts:te]
-            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, dummy_params, dummy_column)
+            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, dummy_params, dummy_column, data_chan_freq)
             d_freq = data_chan_freq.copy()
 
             # iter = get_iter(epoch, num_batches, batch)
@@ -352,7 +352,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
         for batch in range(num_batches):
             ts, te = d_inds[batch]
             indices = allindices[ts:te]
-            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, d_params, dummy_column)
+            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, d_params, dummy_column, data_chan_freq)
             d_freq = data_chan_freq.copy()
 
             x0, _ = ravel_pytree(params)

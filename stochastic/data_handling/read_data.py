@@ -4,12 +4,15 @@ import numpy as np
 from loguru import logger
 
 from daskms import xds_from_ms, xds_from_table
+from stochastic.rime.jax_rime import fused_wsclean_log_rime_sc, fused_wsclean_rime_sc
 
 datacol = "DATA"
 weightcol = "WEIGHT"
 single_corr = True
+log_spectra = False
+dummyparams = False 
 
-def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column):
+def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column, logspectra):
     """
     Read the measuremenet in an xarray dataset
     Args:
@@ -29,8 +32,8 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column):
         Xarray dataset, data_chan_freq, phasedir, rmap
     """
 
-    global datacol, weightcol, single_corr
-    datacol, weightcol, single_corr = data_col, weight_col, singlecorr
+    global datacol, weightcol, single_corr, log_spectra
+    datacol, weightcol, single_corr, log_spectra= data_col, weight_col, singlecorr, logspectra
 
     freqtab = pt.table(msname+'::SPECTRAL_WINDOW', ack=False)
     data_chan_freq = jnp.asarray(freqtab.getcol('CHAN_FREQ')[0])
@@ -54,7 +57,7 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column):
 
     return xds, data_chan_freq, phasedir
 
-def getbatch(inds, xds, d_params, dummy_column):
+def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
     """
     Return the data for the given batch
     Args:
@@ -65,6 +68,8 @@ def getbatch(inds, xds, d_params, dummy_column):
             dummy parameters
         dummy_column (str or None)
             dummy visibilities column
+        data_chan_freq (array)
+            use to commpute dummy visibilities from model
     Return:
         data_vis, data_weights, data_uvw, d_kargs
     """
@@ -113,6 +118,20 @@ def getbatch(inds, xds, d_params, dummy_column):
     data_weights = jnp.asarray(data_weights)
     data_uvw = jnp.asarray(data_uvw)
 
+    # NOQA: no checks added to ensure single correlation, by default just assume everything is single correlation 
+    if dummyparams:
+        d_shape_params = d_params["shape_params"]
+        d_stokes = d_params["stokes"]
+        d_radec = d_params["radec"]
+        d_alpha = d_params["alpha"]
+
+        if log_spectra:
+            dummy_model_vis = fused_wsclean_log_rime_sc(d_radec, data_uvw, data_chan_freq, d_shape_params, d_stokes, d_alpha)
+        else:
+            dummy_model_vis = fused_wsclean_rime_sc(d_radec, data_uvw, data_chan_freq, d_shape_params, d_stokes, d_alpha)
+
+        data_vis -= dummy_model_vis
+
     d_kwargs = {}
     d_kwargs["dummy_params"] = d_params
     d_kwargs["dummy_col_vis"] = dummy_vis
@@ -144,16 +163,18 @@ def load_model(modelfile, dummy_model):
     params["alpha"] = jnp.asarray(alpha)
 
     if dummy_model:
+        global dummyparams
+        dummyparams = True
         d_model = np.load(dummy_model)
         d_stokes = d_model[:,0:1]
         d_radec = d_model[:,1:3]
-        # d_shape_params = d_model[:,3:6]
-        d_alpha = d_model[:,3:]
+        d_shape_params = d_model[:,3:6]
+        d_alpha = d_model[:,6:]
 
         d_params = {}
         d_params["stokes"] = jnp.asarray(d_stokes)
         d_params["radec"]  = jnp.asarray(d_radec)
-        # d_params["shape_params"] = jnp.asarray(d_shape_params)
+        d_params["shape_params"] = jnp.asarray(d_shape_params)
         d_params["alpha"] = jnp.asarray(d_alpha)
     else:
         d_params = None

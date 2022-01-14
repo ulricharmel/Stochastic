@@ -15,7 +15,7 @@ minus_two_pi_over_c = 2*jnp.pi/lightspeed # remove -2
 ra0 = 0 # overwite this in main
 dec0 = 0
 
-freq0 = 1e9 # reference frequence for source spectrum
+freq0 = 1e9 # reference frequency for source spectrum
 
 @jit
 def lm2radec(lm):
@@ -36,6 +36,64 @@ def lm2radec(lm):
         return radec
   
     return lax.fori_loop(0, source, body, radec)
+
+@jit
+def source_spectrum(alpha, freqs):
+    # for now we assume the refrencece frequency is the first frequency
+    # freq0 is imported from tools.py and it value is updated from main
+    frf = freqs/freq0
+    logfr = jnp.log10(frf)
+    
+    spectrum = frf ** sum([a * jnp.power(logfr, n) for n, a in enumerate(alpha)])
+    return spectrum[None, :]
+
+@jit
+def wsclean_spectra(flux, alpha, freqs):
+    # try implementing wsclean normal spectra
+    # freqs0 is the reference frequency
+    one = flux.dtype.type(1.0)
+    
+    # Exact numpy implementation from crystaball
+    nfreq = len(freqs)
+    ncoefs = len(alpha)
+
+    with loops.Scope() as l1:
+        l1.spectrum = jnp.empty_like(freqs)
+
+        for f in l1.range(nfreq):
+            nu =  freqs[f]
+            l1.spectrum = ops.index_update(l1.spectrum, f, flux)
+
+            for c in l1.range(ncoefs):
+                term = alpha[c]
+                term *= ((nu/freq0) - one)**(c + 1)
+                l1.spectrum = ops.index_update(l1.spectrum, f, term+l1.spectrum[f])
+    
+    return l1.spectrum[None, :]
+
+@jit
+def wsclean_log_spectra(flux, alpha, freqs):
+    # try implementing wsclean normal spectra
+    # freqs0 is the reference frequency
+    # Exact numpy implementation from crystaball
+    nfreq = len(freqs)
+    ncoefs = len(alpha)
+
+    with loops.Scope() as l1:
+        l1.spectrum = jnp.empty_like(freqs)
+
+        for f in l1.range(nfreq):
+            nu =  freqs[f]
+            l1.spectrum = ops.index_update(l1.spectrum, f, jnp.log(flux))
+
+            for c in l1.range(ncoefs):
+                term = alpha[c]
+                term *= jnp.log(nu/freq0)**(c + 1)
+                l1.spectrum = ops.index_update(l1.spectrum, f, term+l1.spectrum[f])
+            
+            l1.spectrum = ops.index_update(l1.spectrum, f, jnp.exp(l1.spectrum[f]))
+    
+    return l1.spectrum[None, :]
 
 @jit
 def radec2lm(radec):

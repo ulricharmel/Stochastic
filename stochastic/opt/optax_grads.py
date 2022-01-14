@@ -193,6 +193,7 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
         weights_tt = weights[tt*minibatch:(tt+1)*minibatch]
         kwargs_tt = {}
         kwargs_tt["dummy_col_vis"] = None #kwargs["dummy_col_vis"][tt*minibatch:(tt+1)*minibatch]
+        # kwargs_tt["dummy_params"] = kwargs["dummy_params"]
         
         loss_tt, ugrad = jax.value_and_grad(loss_fn)(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
         vgrad = jax.grad(loss_fn)(params, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
