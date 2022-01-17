@@ -35,6 +35,10 @@ def create_parser():
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
                                 default=[1e-2, 1e-5, 1e-2])
 
+    p.add_argument("--frequency-range", "-fr", dest="fr", type=int, nargs="+",
+                        help="start and end frequency channel to use. Most often frequency edges are completely flagged",  
+                                default=[0, -1])
+
     p.add_argument("--error-functon", "-ef", dest="error_func", help="which function to use for error estimation, diagonals of Hessian or Fisher matrix", 
                       default="hessian", choices=["hessian", "fisher"])
 

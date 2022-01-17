@@ -9,7 +9,7 @@ import os
 import numpy as np
 import Tigger
 
-from stochastic.preprocess.skymodel_utils import lsmconvert
+from stochastic.preprocess.skymodel_utils import *
 
 # define some constants
 deg2rad = np.pi / 180.0;
@@ -118,7 +118,7 @@ _COLUMN_CONVERTERS = {
     'Dec': _deg_converter,
     'I': float,
     'SpectralIndex': spi_converter,
-    'LogarithmicSI': lambda x: bool(x == "true"),
+    'LogarithmicSI': lambda x: bool(x == "true" or x=="True"),
     'ReferenceFrequency': float,
     'MajorAxis': arcsec2rad,
     'MinorAxis': arcsec2rad,
@@ -310,60 +310,6 @@ def load(filename):
             fh.close()
 
 
-def save_text_model(msname, sources, outfile, prefix="src", freq0=None):
-    """Two source model to test the stochastic code"""
-
-    str_out = "#format: name ra_d dec_d  emaj_s emin_s pa_d i q u v spi freq0 \n"
-    filemode = "w"
-
-    if freq0==None:
-        freq0 = get_ms_freq0(msname)
-
-    for i in range(len(sources)):
-        amp, ra_d, dec_d, emaj_s, emin_s, pa_d, spi = sources[i, 0:7]
-        name = prefix+str(i)
-        # if amp>0:
-        str_out += "%s %.12g %.12g %.12g %.12g %.5f %.5g 0 0 0 %.5f %f\n"%(name, ra_d, dec_d, emaj_s, emin_s, pa_d, amp, spi, freq0)
-
-    skymodel = open(outfile,filemode)
-    skymodel.write(str_out)
-    skymodel.close()
-    lsm = lsmconvert(outfile)
-
-    return lsm
-
-def save_text_model_polyspi(msname, sources, outfile, prefix="src", freq0=None):
-    """Two source model to test the stochastic code"""
-
-    nparams = sources.shape[1]
-    spi_c = nparams - 6
-    spi = f"spi"  #+curvature
-
-    for i in range(spi_c-1):
-        spi = spi + f" spi{i+2}"
-
-    str_out = f"#format: name ra_d dec_d emaj_s emin_s pa_d i q u v {spi} freq0 \n"
-    filemode = "w"
-
-    if freq0==None:
-        freq0 = get_ms_freq0(msname)
-
-    for i in range(len(sources)):
-        amp, ra_d, dec_d, emaj_s, emin_s, pa_d = sources[i, 0:6]
-        spi_v = str(sources[i,6:]).strip("[]")
-        name = prefix+str(i)
-        # if amp>0:
-        str_out += f"{name} {ra_d} {dec_d} {emaj_s} {emin_s} {pa_d} {amp} 0 0 0 {spi_v} {freq0}\n"
-        # "%s %.12g %.12g %.12g %.12g %.5f %.5g 0 0 0 %.5f %f\n"%(name, ra_d, dec_d, emaj_s, emin_s, pa_d, amp, spi, freq0)
-
-    skymodel = open(outfile,filemode)
-    skymodel.write(str_out)
-    skymodel.close()
-    lsm = lsmconvert(outfile)
-
-    return lsm
-
-
 def convert_tigger_cc(ccfile, label, n_components=None):
     """convert wsclean components to tigger model"""
 
@@ -388,6 +334,7 @@ def convert_tigger_cc(ccfile, label, n_components=None):
         dec_d = listmodel[3][1][s]
         spi_v = str(listmodel[5][1][s]).strip("[]").replace(",", " ")
         freq0 = listmodel[7][1][s]
+        logspi = listmodel[6][1][s]
         name = listmodel[0][1][s]
         emaj_s = listmodel[8][1][s]
         emin_s = listmodel[9][1][s]
@@ -396,8 +343,9 @@ def convert_tigger_cc(ccfile, label, n_components=None):
 
 
     outdir = os.path.dirname(ccfile)
-    outfile = outdir+"/%s-init-cc-model.txt"%label
+    outdir = "." if outdir == '' else outdir
 
+    outfile = outdir+"/%s-init-cc-model.txt"%label
 
     skymodel = open(outfile,filemode)
     skymodel.write(str_out)
@@ -405,7 +353,7 @@ def convert_tigger_cc(ccfile, label, n_components=None):
 
     os.system("tigger-convert %s -f --rename"%(outfile))
 
-    return outfile[:-4]+".lsm.html", freq0
+    return outfile[:-4]+".lsm.html", freq0, logspi, spi_c
 
 def tigger_to_wsclean(lsmfile, spi_c, freq0, label, log_spi="false"):
     """Convert tigger catalog to wsclean format for crystalball"""
@@ -437,6 +385,8 @@ def tigger_to_wsclean(lsmfile, spi_c, freq0, label, log_spi="false"):
         str_out += f"{name},{s_type},{ra},{dec},{src.flux.I},{spi},{log_spi},{freq0},{shape}\n"
 
     outdir = os.path.dirname(lsmfile)
+    outdir = "." if outdir == '' else outdir
+
     outfile = outdir+"/%s-cc-model.txt"%label
 
     skymodel = open(outfile,filemode)
@@ -471,6 +421,7 @@ def split_model(ccmodel, label, threshold=1e-2):
         if src.shape == None:
             if src.get_attr("cluster_lead"):
                 if src.cluster_flux > threshold:
+                    src.flux.I = src.cluster_flux # set the init flux to the cluster flux then
                     pointsources.append(src)
                 elif src.cluster_flux > 0:
                     dummysources.append(src)
@@ -480,6 +431,7 @@ def split_model(ccmodel, label, threshold=1e-2):
             dummysources.append(src)
 
     outdir = os.path.dirname(ccmodel)
+    outdir = "." if outdir == '' else outdir
     
     model.setSources(pointsources)
     pmodel = outdir+"/%s-point-sources.lsm.html"%label
@@ -491,6 +443,62 @@ def split_model(ccmodel, label, threshold=1e-2):
 
     return pmodel, gmodel
 
+def lsm_cc_init(tiggermodel, label, dummy=False, spi_c=1):
+    """
+    Initiliaise model from tigger file of clean component
+    """
+
+    # import pdb; pdb.set_trace()
+
+    outdir = os.path.dirname(tiggermodel)
+    outdir = "." if outdir == '' else outdir
+
+    model  = Tigger.load(tiggermodel)
+    sources = []
+    freq0 = None
+
+    # import pdb; pdb.set_trace()
+
+    for src in model.sources:
+        if src.get_attr("spectrum"):
+            spi = src.spectrum.spi
+            freq0 = src.spectrum.freq0
+            if type(spi) != list:
+                spi = [spi]
+            if len(spi) != spi_c:
+                n_ext = spi_c - len(spi)
+                spi_ext = [0]*n_ext
+                spi.extend(spi_ext)
+        else:
+            spi = [0]*spi_c
+
+        ra, dec = rad2deg*src.pos.ra, rad2deg*src.pos.dec
+
+        if dummy:
+            flux = src.flux.I 
+            if src.get_attr("shape"):
+                ex, ey, pa = src.shape.ex*rad2arsec, src.shape.ey*rad2arsec, src.shape.pa*rad2deg
+            else:
+                ex=ey=pa = 0
+            source = [flux, ra, dec, ex, ey, pa]
+            source.extend(spi)
+            sources.append(source)
+        else:
+            flux = src.cluster_flux
+            source = [flux, ra, dec]
+            source.extend(spi)
+            sources.append(source)
+
+    model = np.array(sources)
+    if dummy:
+        initmodel = outdir+"/%s-dummy-cc-model.npy"%label
+    else:
+        initmodel = outdir+"/%s-init-point-cc-model.npy"%label
+
+
+    np.save(initmodel, model)
+
+    return initmodel, freq0
 
 
 def convert_numpy(listmodel, label):
@@ -508,6 +516,7 @@ def convert_numpy(listmodel, label):
         sources[s,5] = listmodel[10,s]
 
     outdir = os.path.dirname(listmodel)
+    outdir = "." if outdir == '' else outdir
 
     initmodel = outdir+"/%s-init-cc-model.npy"%label
     np.save(initmodel, sources)

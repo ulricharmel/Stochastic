@@ -4,6 +4,9 @@ from stochastic import __version__
 with open("README.rst") as tmp:
     readme = tmp.read()
 
+console_scripts = ['stochastic=stochastic.main:main', 'stochastic-opt=stochastic.opt_hyper_params:main', 
+                    'stochastic-prep=stochastic.preprocess.wsclean_model:main']
+
 setup(
     author='Ulrich A. Mbou Sob',
     author_email='mulricharmel@gmail.com',
@@ -16,7 +19,7 @@ setup(
     license='GNU GPL v2',
     packages=find_packages(include=['stochastic','stochastic.*']),
     entry_points={
-        'console_scripts': ['stochastic=stochastic.main:main', 'stochastic-opt=stochastic.opt_hyper_params:main']
+        'console_scripts': console_scripts
     },
     keywords='stochastic',
     classifiers=[

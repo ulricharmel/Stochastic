@@ -2,10 +2,11 @@ import dask.array as da
 import numpy as np
 import pytest
 import pyrap.tables as pt
+from MSUtils.msutils import addcol
 import stochastic.rime.tools as RT
 
-from stochastic.rime.jax_rime import fused_rime, fused_rime_sinlge_corr, fused_wsclean_rime
-from testing.conftest import freq0
+from stochastic.rime.jax_rime import fused_rime, fused_wsclean_rime, fused_wsclean_log_rime
+from stochastic.preprocess.skymodel_utils import get_field_center
 
 import jax.numpy as jnp
 
@@ -13,18 +14,13 @@ import jax.numpy as jnp
 from jax.config import config
 config.update("jax_enable_x64", True)
 
-def get_field_center(MS):
-	t = pt.table(MS+"/FIELD", ack=False)
-	phase_centre = (t.getcol("PHASE_DIR"))[0,0,:]
-	t.close()
-	return phase_centre[0], phase_centre[1]
+def wsclean_rime_to_MS(msname, dummymodel, freq0, datacol, logspi=False):
+    # for now simple predict with pyrap
+    # hopefull this is enoug for now, else we have to switch to dask-ms
 
-@pytest.mark.rime
-def test_wsclean_rime(msname, dummymodel, freq0):
     # get some observation settings from the MS
     tab = pt.table(msname)
     uvw = tab.getcol('UVW')
-    model_vis = tab.getcol("MODEL_DATA")
     tab.close()
 
     # get frequency info from SPECTRAL_WINDOW subtable
@@ -37,7 +33,7 @@ def test_wsclean_rime(msname, dummymodel, freq0):
     RT.freq0 = freq0
 
     model = np.load(dummymodel)
-    
+
     nsources = model.shape[0]
     spi_c = model.shape[1] - 6
 
@@ -56,16 +52,15 @@ def test_wsclean_rime(msname, dummymodel, freq0):
     uvw = jnp.asarray(uvw)
     freq = jnp.asarray(freq)
     alpha = jnp.asarray(alpha)
-    
-    vis = fused_wsclean_rime(radec, uvw, freq, shape_params, stokes, alpha)
 
-    vis = np.array(vis)
+    if logspi:
+        vis = fused_wsclean_log_rime(radec, uvw, freq, shape_params, stokes, alpha)
+    else:
+        vis = fused_wsclean_rime(radec, uvw, freq, shape_params, stokes, alpha)
 
-    assert np.allclose(vis, model_vis)
+    # add datacol if it is not present
+    addcol(msname, datacol)	 
 
-
-
-
-
-
-
+    tab = pt.table(msname, readonly=False)
+    tab.putcol(datacol, np.array(vis)) # convert JAX array to numpy array
+    tab.close()

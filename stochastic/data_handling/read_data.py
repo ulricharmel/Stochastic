@@ -10,9 +10,10 @@ datacol = "DATA"
 weightcol = "WEIGHT"
 single_corr = True
 log_spectra = False
-dummyparams = False 
+dummyparams = False
+freq_range = [0,-1] 
 
-def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column, logspectra):
+def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column, logspectra, freqrange):
     """
     Read the measuremenet in an xarray dataset
     Args:
@@ -32,11 +33,14 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column, l
         Xarray dataset, data_chan_freq, phasedir, rmap
     """
 
-    global datacol, weightcol, single_corr, log_spectra
-    datacol, weightcol, single_corr, log_spectra= data_col, weight_col, singlecorr, logspectra
+    global datacol, weightcol, single_corr, log_spectra, freq_range
+    datacol, weightcol, single_corr, log_spectra, freq_range = data_col, weight_col, singlecorr, logspectra, freqrange
+
+    fs = freq_range[0]
+    fe = freq_range[1]
 
     freqtab = pt.table(msname+'::SPECTRAL_WINDOW', ack=False)
-    data_chan_freq = jnp.asarray(freqtab.getcol('CHAN_FREQ')[0])
+    data_chan_freq = jnp.asarray(freqtab.getcol('CHAN_FREQ')[0][fs:fe])
     freqtab.close()
 
     fieldtab = pt.table(msname+"::FIELD", ack=False)
@@ -74,38 +78,41 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
         data_vis, data_weights, data_uvw, d_kargs
     """
 
+    fs = freq_range[0]
+    fe = freq_range[1]
+
     if single_corr:
-        data_vis = xds[datacol][inds][:,:,0:1].compute().data
-        data_flag = xds.FLAG[inds][:,:,0:1].compute().data
+        data_vis = xds[datacol][inds][:,fs:fe,0:1].compute().data
+        data_flag = xds.FLAG[inds][:,fs:fe,0:1].compute().data
         data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
         if dummy_column:
-            dummy_vis = xds[dummy_column][inds][:,:,0:1].compute().data
+            dummy_vis = xds[dummy_column][inds][:,fs:fe,0:1].compute().data
             data_vis -= dummy_vis
         else:
             dummy_vis = None
 
         data_weights = xds[weightcol][inds].compute().data.real
         if data_weights.ndim == 3:
-            data_weights = data_weights[:,:,0:1]
+            data_weights = data_weights[:,fs:fe,0:1]
         else:
             data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
     else:
-        data_vis = xds[datacol][inds][:,:,0:1].compute().data
-        data_flag = xds.FLAG[inds][:,:,0:1].compute().data
+        data_vis = xds[datacol][inds][:,fs:fe,0:1].compute().data
+        data_flag = xds.FLAG[inds][:,fs:fe,0:1].compute().data
         data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
         if dummy_column:
-            dummy_vis = xds[dummy_column][inds][:,:,0:1].compute().data
+            dummy_vis = xds[dummy_column][inds][:,fs:fe,0:1].compute().data
             data_vis -= dummy_vis
         else:
             dummy_vis = None
 
         data_weights = xds[weightcol][inds].compute().data.real
         if data_weights.ndim == 3:
-            data_weights = data_weights[:,:,0:1]
+            data_weights = data_weights[:,fe:fe,0:1]
         else:
             data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
     
@@ -156,6 +163,8 @@ def load_model(modelfile, dummy_model):
     # shape_params = model[:,3:6]
     alpha = model[:,3:]
 
+    nparams = model.shape[1]+3
+
     params = {}
     params["stokes"] = jnp.asarray(stokes)
     params["radec"]  = jnp.asarray(radec)
@@ -179,7 +188,7 @@ def load_model(modelfile, dummy_model):
     else:
         d_params = None
 
-    return params, d_params
+    return params, d_params, nparams
 
 
 

@@ -9,6 +9,7 @@ from stochastic import configure_loguru
 from stochastic.utils.utils import create_output_dirs
 from stochastic.utils.parser import create_parser, init_learning_rates
 from stochastic.data_handling.read_data import set_xds, load_model
+from stochastic.preprocess.skymodel_utils import best_json_to_tigger
 
 import stochastic.opt.train as train
 import stochastic.opt.optax_grads as optaxGrads
@@ -31,6 +32,8 @@ def _main(exitstack):
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     
+    assert len(args.fr) == 2
+    
     # if args.dummy_model:
     #     if args.log_spectra:
     #         jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
@@ -42,13 +45,13 @@ def _main(exitstack):
     jaxGrads.forward_model = opt.foward_pnts_lm
     optaxGrads.forward_model = opt.foward_pnts_lm
 
-    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column, args.log_spectra)
+    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column, args.log_spectra, args.fr)
     RT.ra0, RT.dec0 = phasedir
     RT.freq0 = args.freq0 if args.freq0 else np.mean(data_chan_freq) # data_chan_freq[0]
 
     LR = init_learning_rates(args.lr)
 
-    params, d_params = load_model(args.init_model, args.dummy_model)
+    params, d_params, nparams = load_model(args.init_model, args.dummy_model)
     
     opt_args = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name, args.report_freq]
     # extra_args = dict(d_params=d_params, dummy_column=args.dummy_column, forwardm=forwardm)
@@ -64,6 +67,10 @@ def _main(exitstack):
         error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
         train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
                                                         d_params=d_params, dummy_column=args.dummy_column)
+    
+    logger.info("Saving model to tigger lsm format")
+    paramsfile = f"{args.outdir}/{args.name}-params_best.json"
+    best_json_to_tigger(args.msname, paramsfile, nparams, args.freq0)
     
     ep_min, ep_hr = np.modf((time.time() - t0)/3600.)
     logger.success("{}hr{:0.2f}mins taken for training.".format(int(ep_hr), ep_min*60))
