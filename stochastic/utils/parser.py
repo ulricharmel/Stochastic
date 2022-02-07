@@ -1,5 +1,6 @@
 import argparse
 import os
+from collections import OrderedDict
 
 def create_parser():
     p = argparse.ArgumentParser()
@@ -11,8 +12,14 @@ def create_parser():
     p.add_argument("--weightcol", "-wc", dest="weightcol", type=str, help="datacol to fit", default="WEIGHT")
     
     p.add_argument("--init-model", "-im", type=str, help="initial model file", required=True)
+
+    p.add_argument("--dummy-model", "-dm", type=str, help="dummy model file")
+
+    p.add_argument("--dummy-column", "-dmc", type=str, help="dummy model column")
     
     p.add_argument("--batch-size", "-bs", default=2016, type=int, help="Batch size")
+
+    p.add_argument("--report-freq", "-rf", default=10, type=int, help="Reporting frequency")
     
     p.add_argument('--outdir', "-od", type=str, default="stochastic",  help="output directory, default is created in current working directory")
 
@@ -20,9 +27,19 @@ def create_parser():
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
 
-    p.add_argument("--learning-rate", "-lr", dest="lr", nargs="+", 
+    p.add_argument("--wsclean", "-wsclean", help="fit wsclean spectra model",  action="store_true")
+    
+    p.add_argument("--log-spectra", "-logsp", help="use log spectra for wsclean components",  action="store_true")
+
+    p.add_argument("--svrg", "-sv", help="use svrg",  action="store_true")
+
+    p.add_argument("--learning-rate", "-lr", dest="lr", type=float, nargs="+",
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
-                                default=[1e-3, 1e-6, 1e1, 0.2e0])
+                                default=[1e-2, 1e-5, 1e-2])
+
+    p.add_argument("--frequency-range", "-fr", dest="fr", type=int, nargs="+",
+                        help="start and end frequency channel to use. Most often frequency edges are completely flagged",  
+                                default=[0, -1])
 
     p.add_argument("--error-functon", "-ef", dest="error_func", help="which function to use for error estimation, diagonals of Hessian or Fisher matrix", 
                       default="hessian", choices=["hessian", "fisher"])
@@ -37,6 +54,8 @@ def create_parser():
                         help="Refrence frequency for spi fitting. We assume all the sources have the same reference, default is channel 0")
 
     p.add_argument("--epochs", "-eps", default=20, type=int, help="Number of epochs")
+
+    p.add_argument("--niter", "-niter", default=2000, type=int, help="Max number of iteration per epochs")
 
     p.add_argument("--delta-loss", "-dl", default=1e-6, type=float, help="Minimum change in loss function to actiavte early stoppage")
 
@@ -53,12 +72,12 @@ def init_learning_rates(lr):
         dictionary (stokes, radec, shape_params, spi)
     """
 
-    assert len(lr)==1 or len(lr) == 4, "Either set a constant learning rate or set a different learning rate for each parameter"
+    assert len(lr)==1 or len(lr) == 3, "Either set a constant learning rate or set a different learning rate for each parameter"
 
     if len(lr) == 1:
-        return dict(stokes=float(lr[0]), radec=float(lr[0]), shape_params=float(lr[0]), alpha=float(lr[0]))
+        return dict(alpha=float(lr[0]), radec=float(lr[0]), stokes=float(lr[0]))
     else:
-        return dict(stokes=float(lr[0]), radec=float(lr[1]), shape_params=float(lr[2]), alpha=float(lr[3]))
+        return dict(alpha=float(lr[2]), radec=float(lr[1]), stokes=float(lr[0]))
 
 
 

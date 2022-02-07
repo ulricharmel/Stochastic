@@ -1,0 +1,42 @@
+name: Stochastic CI Workflow
+
+# Specific github action events that you can lookup in their API
+on: [pull_request]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04]
+        python-version: ["3.7", "3.8", "3.9"]
+
+    steps:
+      # Use Custom Github Action to setup different version
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Checkout the source code
+      - name: Checkout source
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      # Upgrade pip and setuptools
+      - name: Upgrade pip and setuptools
+        run: python -m pip install -U pip setuptools
+
+      # Install the package with testing extras
+      - name: Install Stochastic
+        run: python -m pip install .
+
+      # Run the test cases
+      - name: Testing Step
+        run: pytest -v testing/tests
+
+      # Check that the help prints, suggesting that everything is ok.
+      - name: Run Stochastic
+        run: Stochastic --help

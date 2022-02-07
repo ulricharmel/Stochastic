@@ -3,8 +3,8 @@ import jax.numpy as jnp
 from jax import lax, jit, random, custom_jvp, ops
 from jax.test_util import check_grads
 from stochastic.opt import forward
-from stochastic.essays.rime.tools import *
-from stochastic.essays.rime.jax_rime import phase_delay, gaussian
+from stochastic.rime.tools import *
+from stochastic.rime.jax_rime import phase_delay, gaussian
 from loguru import logger
 
 @custom_jvp

@@ -21,7 +21,8 @@ import jax.numpy as jnp
 # TODO(b/160876114): use the pytypes defined in Chex.
 Array = jnp.ndarray
 # LossFun of type f(params, inputs, targets).
-LossFun = Callable[[Any, Array, Array, Array], Array]
+LossFun = Callable[[Any, Array, Array, Array, Any, Any], Array]
+ForwardFun = Callable[[Any, Array, Array, Array, Any], Array]
 
 
 def ravel(p: Any) -> Array:
@@ -35,7 +36,9 @@ def hvp(
     uvw: jnp.DeviceArray,
     freq: jnp.DeviceArray,
     data:jnp.DeviceArray,
-    weights: jnp.DeviceArray
+    weights: jnp.DeviceArray,
+    kwargs: Any,
+    # forwardm: Any
             ) -> jnp.DeviceArray:
     """Performs an efficient vector-Hessian (of `loss`) product.
     Args:
@@ -49,7 +52,7 @@ def hvp(
     evaluated with the current parameters.
     """
     _, unravel_fn = ravel_pytree(params)
-    loss_fn = lambda p: loss(p, uvw, freq, data, weights)
+    loss_fn = lambda p: loss(p, uvw, freq, data, weights, kwargs)
     return jax.jvp(jax.grad(loss_fn), [params], [unravel_fn(v)])[1]
 
 
@@ -59,7 +62,9 @@ def hessian_diag(
     uvw: jnp.DeviceArray,
     freq: jnp.DeviceArray,
     data: jnp.DeviceArray,
-    weights: jnp.DeviceArray
+    weights: jnp.DeviceArray,
+    kwargs: Any,
+    # forwardm: Any
             ) -> jnp.DeviceArray:
     """Computes the diagonal hessian of `loss` at (`inputs`, `targets`).
     Args:
@@ -74,7 +79,7 @@ def hessian_diag(
     """
     pp, _= ravel_pytree(params)
     
-    hess, unravel_fn  = ravel_pytree(hvp(loss, jnp.ones_like(pp), params, uvw, freq, data, weights))
+    hess, unravel_fn  = ravel_pytree(hvp(loss, jnp.ones_like(pp), params, uvw, freq, data, weights, kwargs))
     return unravel_fn(1./jnp.sqrt(jnp.abs(hess)))
 
 
@@ -85,7 +90,9 @@ def fisher_diag(
     uvw: jnp.ndarray,
     freq: jnp.ndarray,
     data: jnp.ndarray,
-    weights: jnp.ndarray
+    weights: jnp.ndarray,
+    kwargs: Any,
+    # forwardm: Any
             ) -> jnp.DeviceArray:
     """Computes the diagonal of the (observed) Fisher information matrix.
     Args:
@@ -100,6 +107,6 @@ def fisher_diag(
     """
     _, unravel_fn = ravel_pytree(params)
     raveled  = jnp.square(
-                    ravel(jax.grad(negative_log_likelihood)(params, uvw, freq, data, weights)))
+                    ravel(jax.grad(negative_log_likelihood)(params, uvw, freq, data, weights, kwargs)))
     
     return unravel_fn(1./jnp.sqrt(raveled))
