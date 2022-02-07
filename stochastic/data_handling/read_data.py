@@ -2,9 +2,12 @@ import pyrap.tables as pt
 import jax.numpy as jnp
 import numpy as np
 from loguru import logger
+import json
 
+# import dask
 from daskms import xds_from_ms, xds_from_table
 from stochastic.rime.jax_rime import fused_wsclean_log_rime_sc, fused_wsclean_rime_sc
+# dask.config.set({"array.slicing.split_large_chunks": False}) 
 
 datacol = "DATA"
 weightcol = "WEIGHT"
@@ -13,6 +16,7 @@ log_spectra = False
 dummyparams = False
 freq_range = [0,-1] 
 
+@profile
 def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column, logspectra, freqrange):
     """
     Read the measuremenet in an xarray dataset
@@ -61,6 +65,7 @@ def set_xds(msname, data_col, weight_col, rowchunks, singlecorr, dummy_column, l
 
     return xds, data_chan_freq, phasedir
 
+@profile
 def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
     """
     Return the data for the given batch
@@ -77,6 +82,8 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
     Return:
         data_vis, data_weights, data_uvw, d_kargs
     """
+
+    # import pdb; pdb.set_trace()
 
     fs = freq_range[0]
     fe = freq_range[1]
@@ -112,7 +119,7 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
 
         data_weights = xds[weightcol][inds].compute().data.real
         if data_weights.ndim == 3:
-            data_weights = data_weights[:,fe:fe,0:1]
+            data_weights = data_weights[:,fs:fe,0:1]
         else:
             data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
     
@@ -157,13 +164,25 @@ def load_model(modelfile, dummy_model):
         dictionary with the intial parameters    
     """
 
-    model = np.load(modelfile)
-    stokes = model[:,0:1]
-    radec = model[:,1:3]
-    # shape_params = model[:,3:6]
-    alpha = model[:,3:]
+    # we assume the model can be a json file if we just want continue with the fit
+    if modelfile.endswith('.npy'):
+        model = np.load(modelfile)
+        stokes = model[:,0:1]
+        radec = model[:,1:3]
+        # shape_params = model[:,3:6]
+        alpha = model[:,3:]
 
-    nparams = model.shape[1]+3
+        nparams = model.shape[1]+3
+    else:
+        tf = open(modelfile)
+        model = json.load(tf)
+        spi_c = len(model['alpha'][0])
+        nparams =  6 + spi_c
+
+        stokes = model['stokes']
+        radec = model['radec']
+        alpha = model['alpha']
+
 
     params = {}
     params["stokes"] = jnp.asarray(stokes)

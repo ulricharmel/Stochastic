@@ -40,7 +40,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
         fitted parameters
     """
 
-    EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ = opt_args
+    EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ, NITER = opt_args
     dummy_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
     params = {}
@@ -55,7 +55,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
     allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
-    num_batches = min(len(inds), 2000)
+    num_batches = min(len(inds), NITER)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
@@ -99,7 +99,7 @@ def train_optax(params_radec, xds, data_chan_freq, batch_size, outdir, error_fn,
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            eps = np.linalg.norm(loss_i-loss_p)/ np.linalg.norm(loss_i)
             if eps < DELTA_LOSS:
                 STALL = True
                 break
@@ -171,7 +171,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
         fitted parameters
     """
 
-    EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ = opt_args
+    EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ, NITER = opt_args
     dummy_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
     # params = OrderedDict()
@@ -186,7 +186,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
     allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
-    num_batches = min(len(inds), 2000)
+    num_batches = min(len(inds), NITER)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
@@ -207,6 +207,8 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
 
     minibatch = batch_size // 10
     logger.info(f"Minibatch size is {minibatch}")
+
+    # import pdb; pdb.set_trace()
 
     for epoch in range(EPOCHS):
         start_time = time.time()
@@ -240,7 +242,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            eps = np.linalg.norm(loss_i-loss_p) # / np.linalg.norm(loss_i)
             if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
                 STALL = True
                 break
@@ -313,7 +315,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
         fitted parameters
     """
 
-    EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ = opt_args
+    EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ, NITER = opt_args
     d_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
     # params = OrderedDict()
@@ -327,7 +329,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
-    num_batches = min(len(inds), 4000)
+    num_batches = min(len(inds), NITER)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     best_loss, best_iter = 10000.0, 0
@@ -372,7 +374,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            eps = np.linalg.norm(loss_i-loss_p) #/ np.linalg.norm(loss_i)
             if eps < DELTA_LOSS:
                 STALL = True
                 break

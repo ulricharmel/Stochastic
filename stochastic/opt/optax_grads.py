@@ -170,6 +170,7 @@ def mean_updates(params, N):
 
 
 # @jit
+@profile
 def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, weights, eps, kwargs):
     
     mgrad = jax.grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)

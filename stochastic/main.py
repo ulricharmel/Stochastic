@@ -34,16 +34,16 @@ def _main(exitstack):
     
     assert len(args.fr) == 2
     
-    # if args.dummy_model:
-    #     if args.log_spectra:
-    #         jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
-    #         optaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
-    #     else:
-    #         jaxGrads.forward_model = opt.foward_pnts_lm_wsclean
-    #         optaxGrads.forward_model = opt.foward_pnts_lm_wsclean
-    # else:
-    jaxGrads.forward_model = opt.foward_pnts_lm
-    optaxGrads.forward_model = opt.foward_pnts_lm
+    if args.wsclean:
+        if args.log_spectra:
+            jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
+            optaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
+        else:
+            jaxGrads.forward_model = opt.foward_pnts_lm_wsclean
+            optaxGrads.forward_model = opt.foward_pnts_lm_wsclean
+    else:
+        jaxGrads.forward_model = opt.foward_pnts_lm
+        optaxGrads.forward_model = opt.foward_pnts_lm
 
     xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column, args.log_spectra, args.fr)
     RT.ra0, RT.dec0 = phasedir
@@ -53,7 +53,7 @@ def _main(exitstack):
 
     params, d_params, nparams = load_model(args.init_model, args.dummy_model)
     
-    opt_args = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name, args.report_freq]
+    opt_args = [args.epochs, args.delta_loss, args.delta_epoch, args.optimizer, args.name, args.report_freq, args.niter]
     # extra_args = dict(d_params=d_params, dummy_column=args.dummy_column, forwardm=forwardm)
     
     # print(minibatch)

@@ -485,6 +485,7 @@ def lsm_cc_init(tiggermodel, label, dummy=False, spi_c=1):
             sources.append(source)
         else:
             flux = src.cluster_flux
+            spi = [0]*spi_c
             source = [flux, ra, dec]
             source.extend(spi)
             sources.append(source)

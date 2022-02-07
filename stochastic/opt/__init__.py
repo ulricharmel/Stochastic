@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax import lax, jit, random
 from jax.test_util import check_grads
 from jax import make_jaxpr
-from stochastic.rime.jax_rime import fused_rime, fused_rime_sinlge_corr, rime_pnts_lm_single_corr, fused_wsclean_log_rime_sc, fused_wsclean_rime_sc
+from stochastic.rime.jax_rime import fused_rime_sinlge_corr, rime_pnts_lm_single_corr, rime_pnts_wsclean_sc, rime_pnts_wsclean_sc_log
 
 @jit
 def forward(params, data_uvw, data_chan_freq, kwargs):
@@ -209,17 +209,17 @@ def foward_pnts_lm_wsclean(params, data_uvw, data_chan_freq, kwargs):
     radec = params["radec"]
     alpha = params["alpha"]
 
-    model_vis = rime_pnts_lm_single_corr(radec, data_uvw, data_chan_freq, stokes, alpha)
+    model_vis = rime_pnts_wsclean_sc(radec, data_uvw, data_chan_freq, stokes, alpha)
 
-    dummy_params = kwargs["dummy_params"]
-    d_shape_params = dummy_params["shape_params"]
-    d_stokes = dummy_params["stokes"]
-    d_radec = dummy_params["radec"]
-    d_alpha = dummy_params["alpha"]
+    # dummy_params = kwargs["dummy_params"]
+    # d_shape_params = dummy_params["shape_params"]
+    # d_stokes = dummy_params["stokes"]
+    # d_radec = dummy_params["radec"]
+    # d_alpha = dummy_params["alpha"]
 
-    dummy_model_vis = fused_wsclean_rime_sc(d_radec, data_uvw, data_chan_freq, d_shape_params, d_stokes, d_alpha)
+    # dummy_model_vis = fused_wsclean_rime_sc(d_radec, data_uvw, data_chan_freq, d_shape_params, d_stokes, d_alpha)
 
-    return model_vis + dummy_model_vis
+    return model_vis # + dummy_model_vis
 
 
 @jit
@@ -244,17 +244,17 @@ def foward_pnts_lm_wsclean_log(params, data_uvw, data_chan_freq, kwargs):
     radec = params["radec"]
     alpha = params["alpha"]
 
-    model_vis = rime_pnts_lm_single_corr(radec, data_uvw, data_chan_freq, stokes, alpha)
+    model_vis = rime_pnts_wsclean_sc_log(radec, data_uvw, data_chan_freq, stokes, alpha)
 
-    dummy_params = kwargs["dummy_params"]
-    d_shape_params = dummy_params["shape_params"]
-    d_stokes = dummy_params["stokes"]
-    d_radec = dummy_params["radec"]
-    d_alpha = dummy_params["alpha"]
+    # dummy_params = kwargs["dummy_params"]
+    # d_shape_params = dummy_params["shape_params"]
+    # d_stokes = dummy_params["stokes"]
+    # d_radec = dummy_params["radec"]
+    # d_alpha = dummy_params["alpha"]
 
-    dummy_model_vis = fused_wsclean_log_rime_sc(d_radec, data_uvw, data_chan_freq, d_shape_params, d_stokes, d_alpha)
+    # dummy_model_vis = fused_wsclean_log_rime_sc(d_radec, data_uvw, data_chan_freq, d_shape_params, d_stokes, d_alpha)
 
-    return model_vis + dummy_model_vis
+    return model_vis # + dummy_model_vis
 
 
 

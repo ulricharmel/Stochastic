@@ -47,53 +47,71 @@ def source_spectrum(alpha, freqs):
     spectrum = frf ** sum([a * jnp.power(logfr, n) for n, a in enumerate(alpha)])
     return spectrum[None, :]
 
-@jit
+@jit 
 def wsclean_spectra(flux, alpha, freqs):
-    # try implementing wsclean normal spectra
-    # freqs0 is the reference frequency
     one = flux.dtype.type(1.0)
-    
-    # Exact numpy implementation from crystaball
-    nfreq = len(freqs)
-    ncoefs = len(alpha)
+    frf = freqs/freq0 - one
+    spectrum = flux + sum([a * jnp.power(frf, n+1) for n, a in enumerate(alpha)])
 
-    with loops.Scope() as l1:
-        l1.spectrum = jnp.empty_like(freqs)
+    return spectrum[None, :]
 
-        for f in l1.range(nfreq):
-            nu =  freqs[f]
-            l1.spectrum = ops.index_update(l1.spectrum, f, flux)
-
-            for c in l1.range(ncoefs):
-                term = alpha[c]
-                term *= ((nu/freq0) - one)**(c + 1)
-                l1.spectrum = ops.index_update(l1.spectrum, f, term+l1.spectrum[f])
-    
-    return l1.spectrum[None, :]
-
-@jit
+@jit 
 def wsclean_log_spectra(flux, alpha, freqs):
-    # try implementing wsclean normal spectra
-    # freqs0 is the reference frequency
-    # Exact numpy implementation from crystaball
-    nfreq = len(freqs)
-    ncoefs = len(alpha)
 
-    with loops.Scope() as l1:
-        l1.spectrum = jnp.empty_like(freqs)
+    logfr = jnp.log(freqs/freq0)
+    log_spectrum = jnp.log(flux) + sum([a * jnp.power(logfr, n+1) for n, a in enumerate(alpha)])
 
-        for f in l1.range(nfreq):
-            nu =  freqs[f]
-            l1.spectrum = ops.index_update(l1.spectrum, f, jnp.log(flux))
+    spectrum = jnp.exp(log_spectrum)
 
-            for c in l1.range(ncoefs):
-                term = alpha[c]
-                term *= jnp.log(nu/freq0)**(c + 1)
-                l1.spectrum = ops.index_update(l1.spectrum, f, term+l1.spectrum[f])
-            
-            l1.spectrum = ops.index_update(l1.spectrum, f, jnp.exp(l1.spectrum[f]))
+    return spectrum[None, :]
+
+# @jit
+# def wsclean_spectra(flux, alpha, freqs):
+#     # try implementing wsclean normal spectra
+#     # freqs0 is the reference frequency
+#     one = flux.dtype.type(1.0)
     
-    return l1.spectrum[None, :]
+#     # Exact numpy implementation from crystaball
+#     nfreq = len(freqs)
+#     ncoefs = len(alpha)
+
+#     with loops.Scope() as l1:
+#         l1.spectrum = jnp.empty_like(freqs)
+
+#         for f in l1.range(nfreq):
+#             nu =  freqs[f]
+#             l1.spectrum = ops.index_update(l1.spectrum, f, flux)
+
+#             for c in l1.range(ncoefs):
+#                 term = alpha[c]
+#                 term *= ((nu/freq0) - one)**(c + 1)
+#                 l1.spectrum = ops.index_update(l1.spectrum, f, term+l1.spectrum[f])
+    
+#     return l1.spectrum[None, :]
+
+# @jit
+# def wsclean_log_spectra(flux, alpha, freqs):
+#     # try implementing wsclean normal spectra
+#     # freqs0 is the reference frequency
+#     # Exact numpy implementation from crystaball
+#     nfreq = len(freqs)
+#     ncoefs = len(alpha)
+
+#     with loops.Scope() as l1:
+#         l1.spectrum = jnp.empty_like(freqs)
+
+#         for f in l1.range(nfreq):
+#             nu =  freqs[f]
+#             l1.spectrum = ops.index_update(l1.spectrum, f, jnp.log(flux))
+
+#             for c in l1.range(ncoefs):
+#                 term = alpha[c]
+#                 term *= jnp.log(nu/freq0)**(c + 1)
+#                 l1.spectrum = ops.index_update(l1.spectrum, f, term+l1.spectrum[f])
+            
+#             l1.spectrum = ops.index_update(l1.spectrum, f, jnp.exp(l1.spectrum[f]))
+    
+#     return l1.spectrum[None, :]
 
 @jit
 def radec2lm(radec):

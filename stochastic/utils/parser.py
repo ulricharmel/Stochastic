@@ -26,6 +26,8 @@ def create_parser():
     p.add_argument('--name', "-name", type=str, default="out",  help="prefix to use for output files")
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
+
+    p.add_argument("--wsclean", "-wsclean", help="fit wsclean spectra model",  action="store_true")
     
     p.add_argument("--log-spectra", "-logsp", help="use log spectra for wsclean components",  action="store_true")
 
@@ -52,6 +54,8 @@ def create_parser():
                         help="Refrence frequency for spi fitting. We assume all the sources have the same reference, default is channel 0")
 
     p.add_argument("--epochs", "-eps", default=20, type=int, help="Number of epochs")
+
+    p.add_argument("--niter", "-niter", default=2000, type=int, help="Max number of iteration per epochs")
 
     p.add_argument("--delta-loss", "-dl", default=1e-6, type=float, help="Minimum change in loss function to actiavte early stoppage")
 

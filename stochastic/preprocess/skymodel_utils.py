@@ -90,7 +90,7 @@ def best_json_to_tigger(msname, paramsfile, nparams, freq0):
     # model[:,3:6] = np.asarray(params["shape_params"])
     model[:,6:] = np.asarray(params["alpha"])
 
-    outfile = paramsfile[:-5]+".lsm.html" 
+    outfile = paramsfile[:-5]+".txt" 
     save_text_model_polyspi(msname, model, outfile, prefix="src", freq0=freq0)
 
 
