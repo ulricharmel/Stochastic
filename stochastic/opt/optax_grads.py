@@ -15,6 +15,9 @@ import numpy as np
 # from jax.experimental import optimizers
 import stochastic.opt.optimizers as optimizers
 
+import line_profiler
+profile = line_profiler.LineProfiler()
+
 forward_model = forward
 optimizer = None
 LR = None

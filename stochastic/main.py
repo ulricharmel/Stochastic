@@ -24,11 +24,18 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 def _main(exitstack):
-    logger.info("Running: stochastic " + " ".join(sys.argv[1:]))
+    # logger.info("Running: stochastic " + " ".join(sys.argv[1:]))
     parser = create_parser()
     args = parser.parse_args()
     create_output_dirs(args.outdir)
     configure_loguru(args.outdir, args.name)
+
+    # import pdb; pdb.set_trace()
+    kw = vars(args)
+    logger.info('Input Options:')
+    for key in kw.keys():
+        logger.info('     %25s = %s' % (key, kw[key]))
+
     if args.efrac > 0.1:
         logger.warning("Fraction of data set to use of hessian computation too large. This may throw a segmentation fault")
     

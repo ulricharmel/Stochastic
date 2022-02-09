@@ -3,6 +3,8 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 import json
+import line_profiler
+profile = line_profiler.LineProfiler()
 
 # import dask
 from daskms import xds_from_ms, xds_from_table
@@ -107,16 +109,21 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
             data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
     else:
         data_vis = xds[datacol][inds][:,fs:fe,0:1].compute().data
+        data_vis = 0.5*(data_vis + xds[datacol][inds][:,fs:fe,3:4].compute().data)
+        
+        # assuming the flagging are the same for all correlations
         data_flag = xds.FLAG[inds][:,fs:fe,0:1].compute().data
         data_flag_row = xds.FLAG_ROW[inds].compute().data
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
         if dummy_column:
             dummy_vis = xds[dummy_column][inds][:,fs:fe,0:1].compute().data
+            dummy_vis = 0.5*(dummy_vis + xds[dummy_column][inds][:,fs:fe,3:4].compute().data) # probably not neccessary
             data_vis -= dummy_vis
         else:
             dummy_vis = None
-
+        
+        # assuming weights are same for all correlations
         data_weights = xds[weightcol][inds].compute().data.real
         if data_weights.ndim == 3:
             data_weights = data_weights[:,fs:fe,0:1]

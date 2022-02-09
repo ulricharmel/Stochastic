@@ -27,6 +27,8 @@ def create_parser():
 
     p.add_argument("--one-corr", "-oc", help="use a single correlation",  action="store_true")
 
+    p.add_argument("--feed-type", "-feed", help="feed type when handle multicorrelations", choices=["linear", "circular"], default="linear")
+
     p.add_argument("--wsclean", "-wsclean", help="fit wsclean spectra model",  action="store_true")
     
     p.add_argument("--log-spectra", "-logsp", help="use log spectra for wsclean components",  action="store_true")
