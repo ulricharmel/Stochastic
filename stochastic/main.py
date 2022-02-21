@@ -8,7 +8,7 @@ from stochastic import configure_loguru
 
 from stochastic.utils.utils import create_output_dirs
 from stochastic.utils.parser import create_parser, init_learning_rates
-from stochastic.data_handling.read_data import set_xds, load_model
+from stochastic.data_handling.read_data import set_xds, load_model, MSobject
 from stochastic.preprocess.skymodel_utils import best_json_to_tigger
 
 import stochastic.opt.train as train
@@ -52,9 +52,13 @@ def _main(exitstack):
         jaxGrads.forward_model = opt.foward_pnts_lm
         optaxGrads.forward_model = opt.foward_pnts_lm
 
-    xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column, args.log_spectra, args.fr)
+    # xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column, args.log_spectra, args.fr)
+    
+    xds = MSobject(args.msname, args.datacol, args.weightcol, args.one_corr, args.dummy_column, args.log_spectra, args.fr)
+    phasedir = xds.phasedir
+
     RT.ra0, RT.dec0 = phasedir
-    RT.freq0 = args.freq0 if args.freq0 else np.mean(data_chan_freq) # data_chan_freq[0]
+    RT.freq0 = args.freq0 if args.freq0 else np.mean(xds.data_chan_freq) # data_chan_freq[0]
 
     LR = init_learning_rates(args.lr)
 
@@ -68,12 +72,14 @@ def _main(exitstack):
     t0 = time.time()
     if args.svrg:
         error_fn = optaxGrads.get_hessian if args.error_func == "hessian" else optaxGrads.get_fisher
-        train.train_svrg(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
+        train.train_svrg(params, xds, xds.data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
                                                            d_params=d_params, dummy_column=args.dummy_column)
     else:
         error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
-        train.train(params, xds, data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
+        train.train(params, xds, xds.data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
                                                         d_params=d_params, dummy_column=args.dummy_column)
+    
+    del xds
     
     logger.info("Saving model to tigger lsm format")
     paramsfile = f"{args.outdir}/{args.name}-params_best.json"
