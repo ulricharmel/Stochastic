@@ -245,7 +245,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) # / np.linalg.norm(loss_i)
+            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
             if loss_i!=0:
                 if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
                     STALL = True
@@ -320,7 +320,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     """
 
     EPOCHS, DELTA_LOSS, DELTA_EPOCH, OPTIMIZER, prefix, REPORT_FREQ, NITER = opt_args
-    d_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
+    dummy_params, dummy_column = extra_args["d_params"], extra_args["dummy_column"]
 
     # params = OrderedDict()
     # params["alpha"] = params_radec["alpha"]
@@ -328,18 +328,20 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     # params["stokes"] = params_radec["stokes"]
     # For now we will aussume a perfect measuremnt set
     
-    nsamples = xds.dims['row']
+    nsamples = xds.nrows # xds.dims['row']
     # assert nsamples%batch_size == 0, "Please choose a batch size that equaly divides the number of rows"
-    allindices = np.random.permutation(np.array(range(nsamples)))
+    # allindices = np.random.permutation(np.array(range(nsamples)))
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
     num_batches = min(len(inds), NITER)
     logger.info(f"Number of batches in one epoch is {num_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
+    
     best_loss, best_iter = 10000.0, 0
     loss_p = 0
     best_model = params.copy()
     loss_avg = {}
+    
     delta_ratio = 1.2
 
     CONV = False
@@ -356,9 +358,11 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
         d_inds = inds[arr]
 
         for batch in range(num_batches):
-            ts, te = d_inds[batch]
-            indices = allindices[ts:te]
-            d_vis, d_weights, d_uvw, d_kwargs = getbatch(indices, xds, d_params, dummy_column, data_chan_freq)
+            # ts, te = d_inds[batch]
+            # indices = allindices[ts:te]
+            # d_vis, d_weights, d_uvw, d_kwargs = getbatch(d_inds[batch], xds, dummy_params, dummy_column, data_chan_freq)
+            
+            d_vis, d_weights, d_uvw, d_kwargs = xds.getbatch(d_inds[batch][0], batch_size, dummy_params)
             d_freq = data_chan_freq.copy()
 
             x0, _ = ravel_pytree(params)
@@ -378,10 +382,11 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) #/ np.linalg.norm(loss_i)
-            if eps < DELTA_LOSS:
-                STALL = True
-                break
+            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            if loss_i!=0:
+                if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
+                    STALL = True
+                    break
 
             if np.asarray(loss_i) < best_loss:
                 best_loss = loss_i 
@@ -399,7 +404,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
         logger.info("Epoch {} in {} secs, mean and final loss are {:.2e} and {:.2e}".format(epoch, epoch_t, mean_loss, loss_i))
     
         if CONV:
-            logger.info("Parameters converge")
+            logger.info("Parameters converge iterations")
             break
         
         if STALL:
