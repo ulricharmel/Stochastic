@@ -245,7 +245,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            eps = np.linalg.norm(loss_i-loss_p) #/ np.linalg.norm(loss_i)
             if loss_i!=0:
                 if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
                     STALL = True
@@ -382,7 +382,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
                 CONV = True 
                 break
         
-            eps = np.linalg.norm(loss_i-loss_p) / np.linalg.norm(loss_i)
+            eps = np.linalg.norm(loss_i-loss_p) #/ np.linalg.norm(loss_i)
             if loss_i!=0:
                 if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
                     STALL = True
