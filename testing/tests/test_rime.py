@@ -96,7 +96,7 @@ def test_dask_rime(chunks):
     vis = rime(radec, uvw, freq, shape_params, stokes, alpha) 
     data = vis.compute()
 
-    import pdb; pdb.set_trace()
+#     import pdb; pdb.set_trace()
 
 
 
