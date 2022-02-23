@@ -1,5 +1,13 @@
+import os
 from setuptools import setup, find_packages
 from stochastic import __version__
+
+build_root = os.path.dirname(__file__)
+
+def requirements():
+    """Get package requirements"""
+    with open(os.path.join(build_root, 'requirements.txt')) as f:
+        return [pname.strip() for pname in f.readlines()]
 
 with open("README.rst") as tmp:
     readme = tmp.read()
@@ -17,6 +25,8 @@ setup(
     long_description_content_type="text/x-rst",
     url='https://github.com/ulricharmel/Stochastic',
     license='GNU GPL v2',
+    install_requires=requirements(),
+    tests_require=["requests", "pytest", "numpy"],
     packages=find_packages(include=['stochastic','stochastic.*']),
     entry_points={
         'console_scripts': console_scripts
