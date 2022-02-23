@@ -8,3 +8,4 @@ dask_ms
 optax
 astro-tigger-lsm
 pytest
+requests
