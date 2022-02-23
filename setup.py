@@ -26,6 +26,7 @@ setup(
     url='https://github.com/ulricharmel/Stochastic',
     license='GNU GPL v2',
     install_requires=requirements(),
+    tests_require=["requests", "pytest", "numpy"],
     packages=find_packages(include=['stochastic','stochastic.*']),
     entry_points={
         'console_scripts': console_scripts
