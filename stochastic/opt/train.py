@@ -187,7 +187,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
     num_batches = min(len(inds), NITER)
-    logger.info(f"Number of batches in one epoch is {num_batches}")
+    logger.info(f"Number of batches in one epoch is {num_batches} out of {len(inds)}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
     CONV = False
@@ -251,10 +251,10 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
                     STALL = True
                     break
 
-            if np.asarray(loss_i) < best_loss:
-                best_loss = loss_i 
-                best_model = params
-                best_iter = iter
+                if np.asarray(loss_i) < best_loss:
+                    best_loss = loss_i 
+                    best_model = params
+                    best_iter = iter
             
             if batch in report_batches:
                 logger.info(f"Epoch {epoch}: after passing through {batch*100./num_batches:.2f}% of the data loss is {loss_i}")
@@ -334,7 +334,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
     num_batches = min(len(inds), NITER)
-    logger.info(f"Number of batches in one epoch is {num_batches}")
+    logger.info(f"Number of batches in one epoch is {num_batches} out of {len(inds)}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
     best_loss, best_iter = 10000.0, 0
@@ -388,10 +388,10 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
                     STALL = True
                     break
 
-            if np.asarray(loss_i) < best_loss:
-                best_loss = loss_i 
-                best_model = params
-                best_iter = iter
+                if np.asarray(loss_i) < best_loss:
+                    best_loss = loss_i 
+                    best_model = params
+                    best_iter = iter
             
             if batch in report_batches:
                 logger.info(f"Epoch {epoch}: after passing through {batch*100./num_batches:.2f}% of the data loss is {loss_i}")

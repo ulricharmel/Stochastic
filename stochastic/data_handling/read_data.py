@@ -321,7 +321,8 @@ def load_model(modelfile, dummy_model):
         stokes = model['stokes']
         radec = model['radec']
         alpha = model['alpha']
-
+    
+    logger.info(f"Number of components in model is {len(stokes)}.")
 
     params = {}
     params["stokes"] = jnp.asarray(stokes)

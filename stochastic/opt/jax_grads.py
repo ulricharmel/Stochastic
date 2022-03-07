@@ -37,12 +37,14 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
     Returns:  
         loss function
     """
+
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
 
     # import pdb; pdb.set_trace()
     diff = data - model_vis
+    num = diff.size*2.
 
-    l1 = jnp.vdot(diff*weights, diff).real/(2*weights.sum())
+    l1 = jnp.vdot(diff*weights, diff).real/num  #/(2*weights.sum()
 
     # targets = jnp.vstack((model_vis.real, model_vis.imag))
     # preds  = jnp.vstack((data.real, data.imag))
