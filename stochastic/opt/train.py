@@ -199,6 +199,8 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
     loss_p = 0
     loss_avg = {}
 
+    grad_avg = {}
+
     optaxGrads.LR = LR
     optaxGrads.init_optimizer(OPTIMIZER)
     opt_state = optaxGrads.opt_init(params)
@@ -216,6 +218,9 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
         arr = np.random.permutation(num_batches)
         d_inds = inds[arr]
 
+        grad_avg["epoch-%d"%epoch] = []
+
+
         for batch in range(num_batches):
             # ts, te = d_inds[batch]
             # indices = allindices[ts:te]
@@ -228,10 +233,12 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
             # iter = get_iter(epoch, num_batches, batch)
             
             x0, _ = ravel_pytree(params)
-            opt_info, params, loss_values = optaxGrads.svrg_step(opt_info, minibatch, LR, params, d_uvw, d_freq, d_vis, d_weights, DELTA_LOSS, d_kwargs)
+            opt_info, params, loss_values, grad_values = optaxGrads.svrg_step(opt_info, minibatch, LR, params, d_uvw, d_freq, d_vis, d_weights, DELTA_LOSS, d_kwargs)
 
             loss_avg["epoch-%d"%epoch].extend(np.asarray(loss_values))
             loss_i = loss_values[-1]
+
+            grad_avg["epoch-%d"%epoch].extend(np.asarray(grad_values))
             
             # import pdb; pdb.set_trace()
 
@@ -292,6 +299,7 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
     save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
     save_output(f"{outdir}/{prefix}-params_best.json", best_model, convert=True)
     save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
+    save_output(f"{outdir}/{prefix}-grads.json", grad_avg, grad=True)
     
     return best_loss
 

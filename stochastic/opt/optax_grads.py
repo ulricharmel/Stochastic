@@ -190,6 +190,8 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
     loss = []
     iter, opt_state = opt_info
 
+    grads_= []
+
     # import pdb; pdb.set_trace()
     
     for ind, tt in enumerate(steps):
@@ -219,6 +221,7 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
         
         # if ind == 0:
         loss.append(loss_tt)
+        grads_.append(grad_tt)
 
         if loss_tt < eps:
             break
@@ -230,7 +233,7 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
 
     # import pdb; pdb.set_trace()
 
-    return opt_info, params_tt, loss
+    return opt_info, params_tt, loss, grads_
 
 @jit
 def get_hessian(params, data_uvw, data_chan_freq, data, weights, kwargs):
