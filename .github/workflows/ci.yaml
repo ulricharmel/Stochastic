@@ -39,4 +39,4 @@ jobs:
 
       # Check that the help prints, suggesting that everything is ok.
       - name: Run Stochastic
-        run: Stochastic --help
+        run: stochastic --help

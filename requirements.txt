@@ -1,0 +1,11 @@
+loguru
+numpy
+python-casacore
+jax
+jaxlib
+line_profiler
+dask_ms
+optax
+astro-tigger-lsm
+pytest
+requests
