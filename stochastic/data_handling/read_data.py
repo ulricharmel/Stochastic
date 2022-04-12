@@ -72,6 +72,9 @@ class MSobject(object):
         fs, fe = self.freq_range
         batch = batch if (batch+i<self.nrows) else (self.nrows - i)
 
+        # rms = 0.01 # just for fun
+        noise_factor = 1 # 2*rms**2
+
         if self.single_corr:
             data_vis = self.ms.getcol(self.datacolumn, startrow=i, nrow=batch)[:,fs:fe,0:1]
             data_flag = self.ms.getcol("FLAG", startrow=i, nrow=batch)[:,fs:fe,0:1]
@@ -86,13 +89,13 @@ class MSobject(object):
             
             data_weights = self.ms.getcol(self.weight_col, startrow=i, nrow=batch)
             if data_weights.ndim == 3:
-                data_weights = data_weights[:,fs:fe,0:1]
+                data_weights = data_weights[:,fs:fe,0:1]/noise_factor
             else:
-                data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
+                data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape) / noise_factor
         else:
-            data_vis = self.ms.getcol(self.datacolumn, startrow=i, nrow=batch)[:,fs:fe,0:1]
-            data_vis += self.ms.getcol(self.datacolumn, startrow=i, nrow=batch)[:,fs:fe,3:4]
-            data_vis /= 2.
+            data_vis_00 = self.ms.getcol(self.datacolumn, startrow=i, nrow=batch)[:,fs:fe,0:1]
+            data_vis_11 = self.ms.getcol(self.datacolumn, startrow=i, nrow=batch)[:,fs:fe,3:4]
+            
 
             # assuming the flags are the same for all correlations
             data_flag = self.ms.getcol("FLAG", startrow=i, nrow=batch)[:,fs:fe,0:1]
@@ -100,19 +103,22 @@ class MSobject(object):
             data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
             if self.dummy_column:
-                dummy_vis = self.ms.getcol(self.dummy_column, startrow=i, nrow=batch)[:,fs:fe,0:1]
-                dummy_vis += self.ms.getcol(self.dummy_column, startrow=i, nrow=batch)[:,fs:fe,3:4]
-                dummy_vis /=2.
-                data_vis -= dummy_vis
+                data_vis_00 -= self.ms.getcol(self.dummy_column, startrow=i, nrow=batch)[:,fs:fe,0:1]
+                data_vis_11 -= self.ms.getcol(self.dummy_column, startrow=i, nrow=batch)[:,fs:fe,3:4]
             else:
                 dummy_vis = None
 
             # aussming the weights are the same for each correlations
             data_weights = self.ms.getcol(self.weight_col, startrow=i, nrow=batch)
             if data_weights.ndim == 3:
-                data_weights = data_weights[:,fs:fe,0:1]
+                data_weights_00 = data_weights[:,fs:fe,0:1]
+                data_weights_11 = data_weights[:,fs:fe,3:4]
             else:
-                data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
+                data_weights_00 = np.broadcast_to(data_weights[:,None,0:1], data_vis_00.shape)
+                data_weights_11 = np.broadcast_to(data_weights[:,None,3:4], data_vis_11.shape)
+            
+            data_vis = (data_vis_00*data_weights_00 + data_vis_11*data_weights_11)/(data_weights_00+data_weights_11)
+            data_weights = (data_weights_00+data_weights_11)/(2.*noise_factor)
     
         data_weights.setflags(write=1)
         data_weights *= np.logical_not(data_flag)
@@ -139,7 +145,7 @@ class MSobject(object):
 
         d_kwargs = {}
         d_kwargs["dummy_params"] = d_params
-        d_kwargs["dummy_col_vis"] = dummy_vis
+        d_kwargs["dummy_col_vis"] = None # dummy_vis
 
         return data_vis, data_weights, data_uvw, d_kwargs
     
@@ -238,9 +244,9 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
         else:
             data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
     else:
-        data_vis = xds[datacol][ts:te][:,fs:fe,0:1].compute().data
-        data_vis += xds[datacol][ts:te][:,fs:fe,3:4].compute().data
-        data_vis /=2.
+        data_vis_00 = xds[datacol][ts:te][:,fs:fe,0:1].compute().data
+        data_vis_11 = xds[datacol][ts:te][:,fs:fe,3:4].compute().data
+        # data_vis /=2.
         
         # assuming the flagging are the same for all correlations
         data_flag = xds.FLAG[ts:te][:,fs:fe,0:1].compute().data
@@ -248,19 +254,23 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
         data_flag = np.logical_or(data_flag, data_flag_row[:,np.newaxis,np.newaxis])
 
         if dummy_column:
-            dummy_vis = xds[dummy_column][ts:te][:,fs:fe,0:1].compute().data
-            dummy_vis += xds[dummy_column][ts:te][:,fs:fe,3:4].compute().data # probably not neccessary
-            dummy_vis /=2.
-            data_vis -= dummy_vis
+            data_vis_00 -= xds[dummy_column][ts:te][:,fs:fe,0:1].compute().data
+            data_vis_11 -= xds[dummy_column][ts:te][:,fs:fe,3:4].compute().data # probably not neccessary
         else:
             dummy_vis = None
         
         # assuming weights are same for all correlations
         data_weights = xds[weightcol][ts:te].compute().data.real
         if data_weights.ndim == 3:
-            data_weights = data_weights[:,fs:fe,0:1]
+            data_weights_00 = data_weights[:,fs:fe,0:1]
+            data_weights_11 = data_weights[:,fs:fe,3:4]
         else:
-            data_weights = np.broadcast_to(data_weights[:,None,0:1], data_vis.shape)
+            data_weights_00 = np.broadcast_to(data_weights_00[:,None,0:1], data_vis_00.shape)
+            data_weights_11 = np.broadcast_to(data_weights_11[:,None,0:1], data_vis_11.shape)
+        
+        rms = 0.01
+        data_vis = (data_vis_00*data_weights_00 + data_vis_11*data_weights_11)/(data_weights_00+data_weights_11)
+        data_weights = (data_weights_00+data_weights_11)/(2.*2*rms**2)
     
     data_weights.setflags(write=1)
     data_weights *= np.logical_not(data_flag)
@@ -303,6 +313,8 @@ def load_model(modelfile, dummy_model):
         dictionary with the intial parameters    
     """
 
+    import stochastic.rime.tools as RT
+
     # we assume the model can be a json file if we just want continue with the fit
     if modelfile.endswith('.npy'):
         model = np.load(modelfile)
@@ -321,11 +333,12 @@ def load_model(modelfile, dummy_model):
         stokes = model['stokes']
         radec = model['radec']
         alpha = model['alpha']
-
+    
+    logger.info(f"Number of components in model is {len(stokes)}.")
 
     params = {}
     params["stokes"] = jnp.asarray(stokes)
-    params["radec"]  = jnp.asarray(radec)
+    params["radec"]  = RT.radec2pixel(jnp.asarray(radec)) # hack for now
     # params["shape_params"] = jnp.asarray(shape_params)
     params["alpha"] = jnp.asarray(alpha)
 
@@ -340,7 +353,7 @@ def load_model(modelfile, dummy_model):
 
         d_params = {}
         d_params["stokes"] = jnp.asarray(d_stokes)
-        d_params["radec"]  = jnp.asarray(d_radec)
+        d_params["radec"]  = jnp.asarray(d_radec) # need to make these consisitent
         d_params["shape_params"] = jnp.asarray(d_shape_params)
         d_params["alpha"] = jnp.asarray(d_alpha)
     else:

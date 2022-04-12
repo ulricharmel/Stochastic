@@ -8,8 +8,8 @@ import numpy as np
 test_root_path = Path(__file__).resolve().parent
 test_data_path = Path(test_root_path, "data")
 
-ms_path = Path(test_data_path, "test8chans2.ms")
-initmodel_path = Path(test_data_path, "t80-ms-init-point-cc-model.npy")
+ms_path = Path(test_data_path, "point.ms")  #test8chans2
+initmodel_path = Path(test_data_path, "point-init-exact-radec.npy")   # "t80-ms-init-point-cc-model.npy"
 dummymodel_path = Path(test_data_path, "t80-ms-dummy-cc-model.npy")
 
 data_lnk = "https://www.dropbox.com/s/8e49mfgsh4h6skq/C147_subset.tar.gz"

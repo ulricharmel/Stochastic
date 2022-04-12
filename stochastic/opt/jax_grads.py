@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax import lax, jit, random, ops
 from jax.test_util import check_grads
 from stochastic.opt import forward
-from stochastic.opt.second_order import hessian_diag, fisher_diag
+from stochastic.opt.second_order import hessian_diag, fisher_diag, power_wrapper
 from stochastic.rime.tools import *
 from loguru import logger
 
@@ -37,12 +37,14 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
     Returns:  
         loss function
     """
+
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
 
     # import pdb; pdb.set_trace()
     diff = data - model_vis
+    num = diff.size*2.
 
-    l1 = jnp.vdot(diff*weights, diff).real/(2*weights.sum())
+    l1 = jnp.vdot(diff, diff).real/num  #/(2*weights.sum() #*weights
 
     # targets = jnp.vstack((model_vis.real, model_vis.imag))
     # preds  = jnp.vstack((data.real, data.imag))
@@ -53,8 +55,6 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
     # l3 = jnp.mean((preds-targets)**2)
 
     return l1
-
-    
 
 @jit
 def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
@@ -81,10 +81,15 @@ def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
 
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
     diff = data - model_vis
-    chi2 = jnp.vdot(diff*weights, diff).real
-    loglike = chi2/2.   # + other parts omitted for now. Especially the weights not included negative change to plus
+    num = diff.size*2.
+
+    loglike = jnp.vdot(diff*weights, diff).real/num
+
+    # chi2 = jnp.vdot(diff*weights, diff).real
+    # loglike = chi2/2.   # + other parts omitted for now. Especially the weights not included negative change to plus
 
     return loglike
+
 
 
 opt_init = opt_update = get_params = None 
@@ -129,7 +134,7 @@ def update(i, opt_state, data_uvw, data_chan_freq, data, weights, kwargs):
     
     # logger.debug("Loss {},  grads, {}", grads, loss)
 
-    return opt_update(i, LR, grads, opt_state), loss
+    return opt_update(i, LR, grads, opt_state), loss, grads
 @jit
 def get_hessian(params, data_uvw, data_chan_freq, data, weights, kwargs):
     """returns the standard error based on hessian of log_like hood"""
@@ -140,3 +145,12 @@ def get_fisher(params, data_uvw, data_chan_freq, data, weights, kwargs):
     """returns the error using an approximation of the fisher diag of the log_like hood"""
     return fisher_diag(log_likelihood, params, data_uvw, data_chan_freq, data, weights, kwargs)
 
+def run_power_method(params, data_uvw, data_chan_freq, data, weights, LR, kwargs):
+    """run the power method"""
+    beta, bp = power_wrapper(log_likelihood, params, data_uvw, data_chan_freq, data, weights, kwargs)  #loss_fn
+    
+    if beta>1:
+        lr = 1/(beta) 
+        return dict(alpha=float(lr), radec=float(lr), stokes=float(lr))
+    else:
+        return LR 

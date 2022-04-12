@@ -7,7 +7,7 @@ from optax._src import base
 from jax.flatten_util import ravel_pytree
 
 from stochastic.opt import forward
-from stochastic.opt.second_order import hessian_diag, fisher_diag
+from stochastic.opt.second_order import hessian_diag, fisher_diag, power_wrapper
 from stochastic.rime.tools import *
 from loguru import logger
 import numpy as np
@@ -21,6 +21,14 @@ profile = line_profiler.LineProfiler()
 forward_model = forward
 optimizer = None
 LR = None
+
+@jit
+def l2_loss(x, x0, alpha):
+    return alpha * ((x-x0) ** 2).mean()
+
+@jit
+def l1_loss(x, x0, alpha):
+    return alpha*jnp.abs(x-x0).mean()
 
 @jit
 def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
@@ -51,17 +59,23 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
     diff = data - model_vis
     num = diff.size*2.
 
-    l1 = jnp.vdot(diff*weights, diff).real/num  #/(2*weights.sum()
+    loss = jnp.vdot(diff*weights, diff).real/num  #/(2*weights.sum()
 
-    # targets = jnp.vstack((model_vis.real, model_vis.imag))
-    # preds  = jnp.vstack((data.real, data.imag))
-    # wei =  jnp.vstack((weights, weights))
+    alpha_l1 = kwargs["alpha_l1"]
+    alpha_l2 = kwargs["alpha_l2"]
+    params0 =  kwargs["params0"]
 
-    # l2 = jnp.sum(wei*(preds - targets)**2)/(wei.sum())
+    loss += sum(
+        l1_loss(w, w0, alpha_l1) 
+        for w, w0 in zip(jax.tree_leaves(params), jax.tree_leaves(params0))
+    )
 
-    # l3 = jnp.mean((preds-targets)**2)
+    loss += sum(
+        l2_loss(w, w0, alpha_l2) 
+        for w, w0 in zip(jax.tree_leaves(params), jax.tree_leaves(params0))
+    )
 
-    return l1
+    return loss 
     
 
 @jit
@@ -89,8 +103,12 @@ def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
 
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
     diff = data - model_vis
-    chi2 = jnp.vdot(diff*weights, diff).real
-    loglike = chi2/2.   # + other parts omitted for now. Especially the weights not included negative change to plus
+    num = diff.size*2.
+
+    loglike = jnp.vdot(diff*weights, diff).real/num
+
+    # chi2 = jnp.vdot(diff*weights, diff).real
+    # loglike = chi2/2.   # + other parts omitted for now. Especially the weights not included negative change to plus
 
     return loglike
 
@@ -172,6 +190,17 @@ def mean_updates(params, N):
         lambda p: p/N, params
     )
 
+@jit
+def nonnegative_projector(x):
+  return jnp.maximum(x, 0)
+
+@jit
+def constraint_upd(opt_state):
+    params = get_params(opt_state)
+    params["stokes"] = ops.index_update(params["stokes"], ops.index[:,0], nonnegative_projector(params["stokes"][:,0]))
+    # params["shape_params"] = ops.index_update(params["shape_params"], ops.index[:,0:2], jnp.abs(params["shape_params"][:,0:2]))
+
+    return params
 
 # @jit
 @profile
@@ -190,6 +219,8 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
     loss = []
     iter, opt_state = opt_info
 
+    grads_= []
+
     # import pdb; pdb.set_trace()
     
     for ind, tt in enumerate(steps):
@@ -198,6 +229,9 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
         weights_tt = weights[tt*minibatch:(tt+1)*minibatch]
         kwargs_tt = {}
         kwargs_tt["dummy_col_vis"] = None #kwargs["dummy_col_vis"][tt*minibatch:(tt+1)*minibatch]
+        kwargs_tt["alpha_l1"] = kwargs["alpha_l1"]
+        kwargs_tt["alpha_l2"] = kwargs["alpha_l2"]
+        kwargs_tt["params0"]  = kwargs["params0"]
         # kwargs_tt["dummy_params"] = kwargs["dummy_params"]
         
         loss_tt, ugrad = jax.value_and_grad(loss_fn)(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
@@ -207,7 +241,12 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
 
         iter = iter+1
         opt_state = opt_update(iter, LR, grad_tt, opt_state)
-        params_tt = get_params(opt_state)
+        
+        if kwargs["noneg"]:
+            params_tt = constraint_upd(opt_state)
+        else:
+            params_tt = get_params(opt_state)
+
         
         # params_tmp = optax.apply_updates(params_tt, grad_tt)
         # loss_tt = loss_fn(params_tt, data_uvw_tt, data_chan_freq, data_tt, weights_tt, kwargs_tt)
@@ -219,6 +258,7 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
         
         # if ind == 0:
         loss.append(loss_tt)
+        grads_.append(grad_tt)
 
         if loss_tt < eps:
             break
@@ -230,7 +270,7 @@ def svrg_step(opt_info, minibatch, lr, params, data_uvw, data_chan_freq, data, w
 
     # import pdb; pdb.set_trace()
 
-    return opt_info, params_tt, loss
+    return opt_info, params_tt, loss, grads_
 
 @jit
 def get_hessian(params, data_uvw, data_chan_freq, data, weights, kwargs):
@@ -241,3 +281,14 @@ def get_hessian(params, data_uvw, data_chan_freq, data, weights, kwargs):
 def get_fisher(params, data_uvw, data_chan_freq, data, weights, kwargs):
     """returns the error using an approximation of the fisher diag of the log_like hood"""
     return fisher_diag(log_likelihood, params, data_uvw, data_chan_freq, data, weights, kwargs)
+
+
+def run_power_method(params, data_uvw, data_chan_freq, data, weights, LR, kwargs):
+    """run the power method"""
+    beta, bp = power_wrapper(log_likelihood, params, data_uvw, data_chan_freq, data, weights, kwargs)  #loss_fn
+    
+    if beta>1:
+        lr = 1/(beta) 
+        return dict(alpha=float(lr), radec=float(lr), stokes=float(lr))
+    else:
+        return LR 

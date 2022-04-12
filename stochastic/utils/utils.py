@@ -18,8 +18,9 @@ def save_output(filname, mydict, convert=False, grad=False):
         mydict_convert = {}
         for key in mydict:
                mydict_convert[key] = {}
-               for key2 in mydict[key]:
-                   mydict_convert[key][key2] = np.asarray(mydict[key][key2]).tolist()
+               for key2 in ["alpha", "radec", "stokes"]:
+                   values = [x[key2] for x in mydict[key]]
+                   mydict_convert[key][key2] = np.asarray(values).tolist()
     else:
         mydict_convert = mydict
 

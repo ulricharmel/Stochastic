@@ -19,6 +19,9 @@ def create_parser():
     
     p.add_argument("--batch-size", "-bs", default=2016, type=int, help="Batch size")
 
+    p.add_argument("--cellsize", "-cz", default=1, type=float, help="Image cellsize in arcseconds, please set this to the cellsize of your image")
+    p.add_argument("--npix", "-npix", default=2048, type=float, help="Number of pixel to define image center")
+
     p.add_argument("--report-freq", "-rf", default=10, type=int, help="Reporting frequency")
     
     p.add_argument('--outdir', "-od", type=str, default="stochastic",  help="output directory, default is created in current working directory")
@@ -34,6 +37,8 @@ def create_parser():
     p.add_argument("--log-spectra", "-logsp", help="use log spectra for wsclean components",  action="store_true")
 
     p.add_argument("--svrg", "-sv", help="use svrg",  action="store_true")
+
+    p.add_argument("--noneg", "-noneg", help="non negative components, set components flux of negative components to zero",  action="store_true")
 
     p.add_argument("--learning-rate", "-lr", dest="lr", type=float, nargs="+",
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
@@ -62,6 +67,10 @@ def create_parser():
     p.add_argument("--delta-loss", "-dl", default=1e-6, type=float, help="Minimum change in loss function to actiavte early stoppage")
 
     p.add_argument("--delta-epoch", "-de", default=5, type=int, help="Number of epochs after whcih early stoppage is activated")
+
+    p.add_argument("--l2r", "-l2r", default=0, type=float, help="L2 regularisation parameter")
+
+    p.add_argument("--l1r", "-l1r", default=0, type=float, help="L1 regularisation parameter")
 
     return p
 
