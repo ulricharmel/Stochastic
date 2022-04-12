@@ -24,7 +24,8 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 def _main(exitstack):
-    # logger.info("Running: stochastic " + " ".join(sys.argv[1:]))
+    logger.info("Running: stochastic " + " ".join(sys.argv[1:]))
+    
     parser = create_parser()
     args = parser.parse_args()
     create_output_dirs(args.outdir)
@@ -59,6 +60,8 @@ def _main(exitstack):
 
     RT.ra0, RT.dec0 = phasedir
     RT.freq0 = args.freq0 if args.freq0 else np.mean(xds.data_chan_freq) # data_chan_freq[0]
+    RT.cellsize = args.cellsize
+    RT.cx = RT.cy = args.npix/2
 
     LR = init_learning_rates(args.lr)
 
@@ -73,11 +76,11 @@ def _main(exitstack):
     if args.svrg:
         error_fn = optaxGrads.get_hessian if args.error_func == "hessian" else optaxGrads.get_fisher
         train.train_svrg(params, xds, xds.data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
-                                                           d_params=d_params, dummy_column=args.dummy_column)
+                                                           d_params=d_params, dummy_column=args.dummy_column, l1r=args.l1r, l2r=args.l2r, noneg=args.noneg)
     else:
         error_fn = jaxGrads.get_hessian if args.error_func == "hessian" else jaxGrads.get_fisher
         train.train(params, xds, xds.data_chan_freq, args.batch_size, args.outdir, error_fn, LR, *opt_args, 
-                                                        d_params=d_params, dummy_column=args.dummy_column)
+                                                        d_params=d_params, dummy_column=args.dummy_column, l1r=args.l1r, l2r=args.l2r, noneg=args.noneg)
     
     del xds
     

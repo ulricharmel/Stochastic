@@ -245,7 +245,7 @@ def fused_wsclean_log_rime_sc(radec, uvw, frequency, shape_params, stokes, alpha
 @jit 
 def rime_pnts_wsclean_sc(radec, uvw, frequency, stokes, alpha):
 
-    lm = radec2lm(radec)
+    lm = pixel2lm(radec) #radec2lm(radec) frac2lm
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]
@@ -273,7 +273,7 @@ def rime_pnts_wsclean_sc(radec, uvw, frequency, stokes, alpha):
 @jit 
 def rime_pnts_wsclean_sc_log(radec, uvw, frequency, stokes, alpha):
 
-    lm = radec2lm(radec)
+    lm = pixel2lm(radec) # radec2lm(radec) pixel2lm frac2lm
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]
@@ -386,7 +386,7 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
 @jit
 def rime_pnts_lm_single_corr(radec, uvw, frequency, stokes, alpha):
 
-    lm = radec2lm(radec)
+    lm = pixel2lm(radec) # radec2lm(radec) frac2lm
     source = lm.shape[0]
     row = uvw.shape[0]
     chan = frequency.shape[0]
