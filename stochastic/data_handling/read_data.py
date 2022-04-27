@@ -69,6 +69,8 @@ class MSobject(object):
             d_params (dict): parameters for dummy sources to compute on the fly
         """
 
+        # import pdb; pdb.set_trace()
+
         fs, fe = self.freq_range
         batch = batch if (batch+i<self.nrows) else (self.nrows - i)
 

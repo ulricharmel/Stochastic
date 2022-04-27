@@ -21,6 +21,8 @@ def create_parser():
 
     p.add_argument("--dummycol", "-dmc", dest="dummycol", type=str, help="If given the dummy model will be predicted here directly")
 
+    p.add_argument("--cluster-dist", "-cdist", dest="cluster_dist", type=int, help="clustering distance to use for tigger convert", default=10)
+
     return p
 
 def _main(exitstack):
@@ -28,11 +30,11 @@ def _main(exitstack):
     parser = create_parser()
     args = parser.parse_args()
 
-    cclsm, freq0, logspi, spi_c = convert_tigger_cc(args.sourcelist, args.prefix)
-    pmodel, gmodel = split_model(cclsm, args.prefix, threshold=args.threshold)
+    cclsm, freq0, logspi, spi_c = convert_tigger_cc(args.sourcelist, args.prefix, cluster_dist=args.cluster_dist)
+    pmodel, gmodel = split_model(cclsm, args.prefix, threshold=args.threshold, cluster_dist=args.cluster_dist)
 
-    initmodel ,_ = lsm_cc_init(pmodel, args.prefix, dummy=False, spi_c=spi_c)
-    dummymodel, _ = lsm_cc_init(gmodel, args.prefix, dummy=True, spi_c=spi_c)
+    initmodel ,_ = lsm_cc_init(pmodel, args.prefix, dummy=False, spi_c=spi_c, cluster_dist=args.cluster_dist)
+    dummymodel, _ = lsm_cc_init(gmodel, args.prefix, dummy=True, spi_c=spi_c, cluster_dist=args.cluster_dist)
     skymodel = tigger_to_wsclean(gmodel, spi_c, freq0, args.prefix+"-dummy-", log_spi=str(logspi))
 
     logger.info(f"Freq0, logspi and spi_c are {freq0}, {logspi} and {spi_c}.")
