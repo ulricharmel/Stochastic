@@ -1,8 +1,8 @@
 loguru
 numpy
 python-casacore
-jax
-jaxlib
+jax==0.2.18
+jaxlib==0.1.69
 line_profiler
 dask_ms
 optax
