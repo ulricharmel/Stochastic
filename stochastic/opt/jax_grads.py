@@ -42,7 +42,7 @@ def loss_fn(params, data_uvw, data_chan_freq, data, weights, kwargs):
 
     # import pdb; pdb.set_trace()
     diff = data - model_vis
-    num = diff.size*2.
+    num = 2*weights.sum() + 1e-12 # diff.size*2.
 
     l1 = jnp.vdot(diff, diff).real/num  #/(2*weights.sum() #*weights
 
@@ -81,7 +81,7 @@ def log_likelihood(params, data_uvw, data_chan_freq, data, weights, kwargs):
 
     model_vis = forward_model(params, data_uvw, data_chan_freq, kwargs)
     diff = data - model_vis
-    num = diff.size*2.
+    num = 2*weights.sum() + 1e-12 # diff.size*2.
 
     loglike = jnp.vdot(diff*weights, diff).real/num
 
@@ -117,17 +117,23 @@ def init_optimizer(opt="adam"):
 def nonnegative_projector(x):
   return jnp.maximum(x, 0)
 
+
 @jit
 def constraint_upd(opt_state):
     params = get_params(opt_state)
-    # params["stokes"] = ops.index_update(params["stokes"], ops.index[:,0], nonnegative_projector(params["stokes"][:,0]))
+    params["stokes"] = ops.index_update(params["stokes"], ops.index[:,0], nonnegative_projector(params["stokes"][:,0]))
     # params["shape_params"] = ops.index_update(params["shape_params"], ops.index[:,0:2], jnp.abs(params["shape_params"][:,0:2]))
 
     return params
 
-@jit
+
 def update(i, opt_state, data_uvw, data_chan_freq, data, weights, kwargs):
-    params = constraint_upd(opt_state)
+    
+    if kwargs["noneg"]:
+        params = constraint_upd(opt_state)
+    else:
+        params = get_params(opt_state)
+
     loss, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
 
     # import pdb; pdb.set_trace()

@@ -20,6 +20,7 @@ def create_parser():
     p.add_argument("--batch-size", "-bs", default=2016, type=int, help="Batch size")
 
     p.add_argument("--cellsize", "-cz", default=1, type=float, help="Image cellsize in arcseconds, please set this to the cellsize of your image")
+    
     p.add_argument("--npix", "-npix", default=2048, type=float, help="Number of pixel to define image center")
 
     p.add_argument("--report-freq", "-rf", default=10, type=int, help="Reporting frequency")
@@ -52,7 +53,7 @@ def create_parser():
                       default="hessian", choices=["hessian", "fisher"])
 
     p.add_argument("--optimizer", "-op", dest="optimizer", help="which optimisation to use ADAM, SGD, Momentum", 
-                      default="adam", choices=["adam", "sgd", "momentum"])
+                      default="sgd", choices=["adam", "sgd", "momentum"])
 
     p.add_argument("--error-fraction", "-efrac", dest="efrac", 
                 help="fraction of the data to use for hessian estimation, note a large value will cause an error",  default=0.02)

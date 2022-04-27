@@ -310,7 +310,7 @@ def load(filename):
             fh.close()
 
 
-def convert_tigger_cc(ccfile, label, n_components=None):
+def convert_tigger_cc(ccfile, label, n_components=None, cluster_dist=10):
     """convert wsclean components to tigger model"""
 
     # import pdb; pdb.set_trace()
@@ -351,7 +351,7 @@ def convert_tigger_cc(ccfile, label, n_components=None):
     skymodel.write(str_out)
     skymodel.close()
 
-    os.system("tigger-convert %s -f --rename"%(outfile))
+    os.system("tigger-convert %s -f --rename --cluster-dist %d"%(outfile,cluster_dist))
 
     return outfile[:-4]+".lsm.html", freq0, logspi, spi_c
 
@@ -395,8 +395,23 @@ def tigger_to_wsclean(lsmfile, spi_c, freq0, label, log_spi="false"):
 
     return outfile
 
+def findallsrcs(model, cluster):
+    """Find all the sources belonging to this cluster from a tigger model
+    Args:
+        model (tigger lsm model)
+        cluster (str)
+    returns:
+        list of sources
+    """
 
-def split_model(ccmodel, label, threshold=1e-2):
+    sources = []
+    for src in model.sources:
+        if cluster in src.name:
+            sources.append(src)
+
+    return sources
+
+def split_model(ccmodel, label, threshold=1e-2, cluster_dist=5):
     """split the wsclean component model into two skymodel
     -one containing points sources to fit and the other
     containing gaussian sources
@@ -417,18 +432,47 @@ def split_model(ccmodel, label, threshold=1e-2):
     pointsources = []
     dummysources = []
 
-    for src in model.sources:
-        if src.shape == None:
-            if src.get_attr("cluster_lead"):
-                if src.cluster_flux > threshold:
-                    src.flux.I = src.cluster_flux # set the init flux to the cluster flux then
+    if cluster_dist == 0:
+        for src in model.sources:
+            if src.shape == None:
+                if abs(src.flux.I) > threshold:
                     pointsources.append(src)
-                elif src.cluster_flux > 0:
-                    dummysources.append(src)
                 else:
-                    dummysources.append(src) #pass
-        else:
-            dummysources.append(src)
+                    dummysources.append(src)           
+            else:
+               dummysources.append(src) 
+    else:
+        clusters = np.unique([src.cluster for src in model.sources])
+        
+        for cluster in clusters:
+            allsrcs = findallsrcs(model, cluster)
+            cluster_flux = allsrcs[0].cluster_flux
+            if cluster_flux > threshold:
+                for src in allsrcs:
+                    if src.get_attr("cluster_lead"):
+                        if src.shape == None:
+                            src.flux.I = src.cluster_flux
+                            pointsources.append(src)
+                        else:
+                            dummysources.extend(allsrcs)
+                        break 
+            elif len(allsrcs) > 1 or cluster_flux > 0:
+                dummysources.extend(allsrcs)
+            else:
+                pass  # NOQA 
+
+        # for src in model.sources:
+        #     if src.shape == None:
+        #         if src.get_attr("cluster_lead"):
+        #             if src.cluster_flux > threshold:
+        #                 src.flux.I = src.cluster_flux # set the init flux to the cluster flux then
+        #                 pointsources.append(src)
+        #             elif src.cluster_flux > 0:
+        #                 dummysources.append(src)
+        #             else:
+        #                 dummysources.append(src) #pass
+        #     else:
+        #         dummysources.append(src)
 
     outdir = os.path.dirname(ccmodel)
     outdir = "." if outdir == '' else outdir
@@ -441,9 +485,11 @@ def split_model(ccmodel, label, threshold=1e-2):
     gmodel = outdir+"/%s-dummy-sources.lsm.html"%label
     model.save(gmodel)
 
+    print(f"Model splitted into {len(pointsources)} fit and {len(dummysources)} dummy components")
+
     return pmodel, gmodel
 
-def lsm_cc_init(tiggermodel, label, dummy=False, spi_c=1):
+def lsm_cc_init(tiggermodel, label, dummy=False, spi_c=1, cluster_dist=5):
     """
     Initiliaise model from tigger file of clean component
     """
@@ -484,8 +530,11 @@ def lsm_cc_init(tiggermodel, label, dummy=False, spi_c=1):
             source.extend(spi)
             sources.append(source)
         else:
-            flux = src.cluster_flux
-            spi = [0]*spi_c
+            if cluster_dist==0:
+                flux = src.flux.I  
+            else: 
+                flux = src.cluster_flux
+            # spi = [0]*spi_c
             source = [flux, ra, dec]
             source.extend(spi)
             sources.append(source)
