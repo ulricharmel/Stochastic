@@ -34,6 +34,8 @@ def create_parser():
     p.add_argument("--feed-type", "-feed", help="feed type when handle multicorrelations", choices=["linear", "circular"], default="linear")
 
     p.add_argument("--wsclean", "-wsclean", help="fit wsclean spectra model",  action="store_true")
+
+    p.add_argument("--gauss", "-gauss", help="fit a gaussian model",  action="store_true")
     
     p.add_argument("--log-spectra", "-logsp", help="use log spectra for wsclean components",  action="store_true")
 
@@ -75,7 +77,7 @@ def create_parser():
 
     return p
 
-def init_learning_rates(lr):
+def init_learning_rates(lr, gauss=False):
     """
     initialise a dictionary of learning rates
     args:
@@ -84,12 +86,20 @@ def init_learning_rates(lr):
         dictionary (stokes, radec, shape_params, spi)
     """
 
-    assert len(lr)==1 or len(lr) == 3, "Either set a constant learning rate or set a different learning rate for each parameter"
+    if gauss:
+        assert len(lr)==1 or len(lr) == 4, "Either set a constant learning rate or set a different learning rate for each parameter"
+        if len(lr) == 1:
+            return dict(alpha=float(lr[0]),  shape_params=float(lr[0]), radec=float(lr[0]), stokes=float(lr[0]))
+        else:
+            return dict(alpha=float(lr[3]),  shape_params=float(lr[2]), radec=float(lr[1]), stokes=float(lr[0]))
 
-    if len(lr) == 1:
-        return dict(alpha=float(lr[0]), radec=float(lr[0]), stokes=float(lr[0]))
-    else:
-        return dict(alpha=float(lr[2]), radec=float(lr[1]), stokes=float(lr[0]))
+    else: 
+        assert len(lr)==1 or len(lr) == 3, "Either set a constant learning rate or set a different learning rate for each parameter"
+
+        if len(lr) == 1:
+            return dict(alpha=float(lr[0]), radec=float(lr[0]), stokes=float(lr[0]))
+        else:
+            return dict(alpha=float(lr[2]), radec=float(lr[1]), stokes=float(lr[0]))
 
 
 

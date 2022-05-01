@@ -79,7 +79,7 @@ def save_text_model_polyspi(msname, sources, outfile, prefix="src", freq0=None):
 
     return lsm
 
-def best_json_to_tigger(msname, paramsfile, nparams, freq0):
+def best_json_to_tigger(msname, paramsfile, nparams, freq0, gauss):
     """load the output paramsfile and save it as a tigger skymodel"""
     tf = open(paramsfile)
     params = json.load(tf)
@@ -87,7 +87,8 @@ def best_json_to_tigger(msname, paramsfile, nparams, freq0):
     model = np.zeros((nsources, nparams))
     model[:,0] = np.asarray(params["stokes"])[:,0]
     model[:,1:3] = np.asarray(params["radec"])
-    # model[:,3:6] = np.asarray(params["shape_params"])
+    if gauss:
+        model[:,3:6] = np.asarray(params["shape_params"])
     model[:,6:] = np.asarray(params["alpha"])
 
     outfile = paramsfile[:-5]+".txt" 

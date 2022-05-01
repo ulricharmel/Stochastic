@@ -243,6 +243,73 @@ def fused_wsclean_log_rime_sc(radec, uvw, frequency, shape_params, stokes, alpha
 
 
 @jit 
+def rime_gauss_wsclean_sc(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = pixel2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = dummy_brightness_sc()
+        spectrum = wsclean_spectra(stokes[s, 0], alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
+
+@jit 
+def rime_gauss_wsclean_sc_log(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = pixel2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = dummy_brightness_sc()
+        spectrum = wsclean_log_spectra(stokes[s, 0], alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
+
+
+@jit 
 def rime_pnts_wsclean_sc(radec, uvw, frequency, stokes, alpha):
 
     lm = pixel2lm(radec) #radec2lm(radec) frac2lm
@@ -382,6 +449,38 @@ def fused_rime_sinlge_corr(radec, uvw, frequency, shape_params, stokes, alpha):
 
     return lax.fori_loop(0, source, body, vis)
 
+@jit
+def rime_gauss_lm_single_corr(radec, uvw, frequency, shape_params, stokes, alpha):
+
+    lm = pixel2lm(radec)
+    source = lm.shape[0]
+    row = uvw.shape[0]
+    chan = frequency.shape[0]
+    corr = stokes.shape[1]
+    
+    shape_arcsec = jnp.empty_like(shape_params)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 0:2], shape_params[:,0:2]*arcsec2rad)
+    shape_arcsec = ops.index_update(shape_arcsec, ops.index[:, 2], shape_params[:,2]*deg2rad)
+
+    dtype = jnp.result_type(lm.dtype, uvw.dtype,
+                            frequency.dtype, shape_params.dtype, stokes.dtype,
+                            jnp.complex64)
+    vis = jnp.empty((row, chan, corr), dtype)
+
+    def body(s, vis):
+        phdelay = phase_delay(lm[None, s], uvw, frequency)
+        brness = stokes[None, s]
+        spectrum = source_spectrum(alpha[s], frequency)
+        gauss_shape = gaussian(uvw, frequency, shape_arcsec[None, s])
+        coh = jnp.einsum("srf,srf,si,sf->rfi",
+                         phdelay,
+                         gauss_shape,
+                         brness,
+                         spectrum)
+
+        return vis + coh.astype(dtype)
+
+    return lax.fori_loop(0, source, body, vis)
 
 @jit
 def rime_pnts_lm_single_corr(radec, uvw, frequency, stokes, alpha):

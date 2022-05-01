@@ -156,7 +156,10 @@ def run_power_method(params, data_uvw, data_chan_freq, data, weights, LR, kwargs
     beta, bp = power_wrapper(log_likelihood, params, data_uvw, data_chan_freq, data, weights, kwargs)  #loss_fn
     
     if beta>1:
-        lr = 1/(beta) 
-        return dict(alpha=float(lr), radec=float(lr), stokes=float(lr))
+        lr = 1/(beta)
+        if kwargs["gauss"]: 
+            return dict(alpha=float(lr), shape_params=float(lr), radec=float(lr), stokes=float(lr))
+        else:
+            return dict(alpha=float(lr), radec=float(lr), stokes=float(lr))
     else:
         return LR 

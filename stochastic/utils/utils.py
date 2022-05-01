@@ -9,16 +9,17 @@ import pyrap.tables as pt
 import json
 from loguru import logger
 
-def save_output(filname, mydict, convert=False, grad=False):
+def save_output(filname, mydict, convert=False, grad=False, gauss=False):
     if convert:
         mydict_convert = {}
         for key in mydict:
             mydict_convert[key] = np.asarray(mydict[key]).tolist()
     elif grad:
         mydict_convert = {}
+        allkeys = ["alpha", "shape_params", "radec", "stokes"] if gauss else ["alpha", "radec", "stokes"]
         for key in mydict:
                mydict_convert[key] = {}
-               for key2 in ["alpha", "radec", "stokes"]:
+               for key2 in allkeys:
                    values = [x[key2] for x in mydict[key]]
                    mydict_convert[key][key2] = np.asarray(values).tolist()
     else:
