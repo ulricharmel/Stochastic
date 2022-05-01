@@ -303,7 +303,7 @@ def getbatch(inds, xds, d_params, dummy_column, data_chan_freq):
 
     return data_vis, data_weights, data_uvw, d_kwargs
 
-def load_model(modelfile, dummy_model):
+def load_model(modelfile, dummy_model, gauss=False):
     """load model save a npy file.
         Array with shape (nsources x flux x ra x dec x emaj, emin x pa)
     Args:
@@ -322,26 +322,34 @@ def load_model(modelfile, dummy_model):
         model = np.load(modelfile)
         stokes = model[:,0:1]
         radec = model[:,1:3]
-        # shape_params = model[:,3:6]
-        alpha = model[:,3:]
-
-        nparams = model.shape[1]+3
+        if gauss:
+            shape_params = model[:,3:6]
+            alpha = model[:,6:]
+            nparams = model.shape[1] #+6
+        else:
+            # shape_params = model[:,3:6]
+            alpha = model[:,3:]
+            nparams = model.shape[1]+3
     else:
         tf = open(modelfile)
         model = json.load(tf)
         spi_c = len(model['alpha'][0])
-        nparams =  6 + spi_c
+        nparams =  6 + spi_c if gauss else 3 + spi_c
 
         stokes = model['stokes']
         radec = model['radec']
         alpha = model['alpha']
+        
+        if gauss:
+            shape_params = model["shape_params"]
     
     logger.info(f"Number of components in model is {len(stokes)}.")
 
     params = {}
     params["stokes"] = jnp.asarray(stokes)
     params["radec"]  = RT.radec2pixel(jnp.asarray(radec)) # hack for now
-    # params["shape_params"] = jnp.asarray(shape_params)
+    if gauss:
+        params["shape_params"] = jnp.asarray(shape_params)
     params["alpha"] = jnp.asarray(alpha)
 
     if dummy_model:

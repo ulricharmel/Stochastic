@@ -180,11 +180,15 @@ def train_svrg(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *o
     best_model_radec["radec"]  = pixel2radec(best_model["radec"])
     best_model_radec["alpha"]  = best_model["alpha"]
 
+    if d_kwargs["gauss"]:
+        params_radec["shape_params"] = params["shape_params"]
+        best_model_radec["shape_params"] = best_model["shape_params"]
+
     save_output(f"{outdir}/{prefix}-params.json", params_radec, convert=True)
     save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
     save_output(f"{outdir}/{prefix}-params_best.json", best_model_radec, convert=True)
     save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
-    save_output(f"{outdir}/{prefix}-grads.json", grad_avg, grad=True)
+    save_output(f"{outdir}/{prefix}-grads.json", grad_avg, grad=True, gauss=d_kwargs["gauss"])
     
     return best_loss
 
@@ -246,7 +250,7 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     jaxGrads.LR = LR
     jaxGrads.init_optimizer(OPTIMIZER)
     opt_state = jaxGrads.opt_init(params)
-    
+
     for epoch in range(EPOCHS):
         start_time = time.time()
         loss_avg["epoch-%d"%epoch] = []
@@ -263,11 +267,12 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
             d_kwargs["alpha_l1"] = extra_args["l1r"]
             d_kwargs["alpha_l2"] = extra_args["l2r"]
             d_kwargs["noneg"] = extra_args["noneg"]
+            d_kwargs["gauss"] = extra_args["gauss"]
 
             d_freq = data_chan_freq.copy()
 
             # if batch==0 and epoch==0:
-            #     optaxGrads.LR = optaxGrads.run_power_method(params, d_uvw, d_freq, d_vis, d_weights, LR, d_kwargs)
+            #     jaxGrads.LR = jaxGrads.run_power_method(params, d_uvw, d_freq, d_vis, d_weights, LR, d_kwargs)
 
             x0, _ = ravel_pytree(params)
             iter = get_iter(epoch, num_batches, batch)
@@ -287,13 +292,15 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
             xk, _ = ravel_pytree(params)
             eps = np.linalg.norm(xk - x0) / np.linalg.norm(xk)
             if eps < DELTA_LOSS:
-                CONV = True 
+                CONV = True
+                best_loss = loss_i 
                 break
         
             eps = np.linalg.norm(loss_i-loss_p) #/ np.linalg.norm(loss_i)
             if loss_i!=0:
                 if eps < DELTA_LOSS or loss_i<DELTA_LOSS:
                     STALL = True
+                    best_loss = loss_i
                     break
 
                 if np.asarray(loss_i) < best_loss:
@@ -312,11 +319,11 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
         logger.info("Epoch {} in {} secs, min, mean and final loss are {:.2e} {:.2e} and {:.2e}".format(epoch, epoch_t, best_loss, mean_loss, loss_i))
     
         if CONV:
-            logger.info("Parameters converge iterations")
+            logger.info(f"Parameters converge after {iter+1} iterations")
             break
         
         if STALL:
-            logger.info("Loss stall")
+            logger.info(f"Loss stall after {iter+1} iterations")
             break
     
     errors = error_fn(best_model, d_uvw, d_freq, d_vis, d_weights, d_kwargs)
@@ -335,10 +342,14 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     best_model_radec["radec"]  = pixel2radec(best_model["radec"])
     best_model_radec["alpha"]  = best_model["alpha"]
 
+    if d_kwargs["gauss"]:
+        params_radec["shape_params"] = params["shape_params"]
+        best_model_radec["shape_params"] = best_model["shape_params"]
+
     save_output(f"{outdir}/{prefix}-params.json", params_radec, convert=True)
     save_output(f"{outdir}/{prefix}-loss.json", loss_avg, convert=True)
     save_output(f"{outdir}/{prefix}-params_best.json", best_model_radec, convert=True)
     save_output(f"{outdir}/{prefix}-params_best_errors.json", errors, convert=True)
-    save_output(f"{outdir}/{prefix}-grads.json", grad_avg, grad=True)
+    save_output(f"{outdir}/{prefix}-grads.json", grad_avg, grad=True, gauss=d_kwargs["gauss"])
         
     return best_loss
