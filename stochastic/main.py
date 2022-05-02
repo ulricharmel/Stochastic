@@ -23,7 +23,7 @@ import stochastic.opt as opt
 from jax.config import config
 config.update("jax_enable_x64", True)
 
-def choose_model_function(gauss, wsclean, log_spectra):
+def choose_model_function(gauss, wsclean, log_spectra, drop_flags):
     """
     Choose the model function based on the user input parameters
     Args:
@@ -32,31 +32,57 @@ def choose_model_function(gauss, wsclean, log_spectra):
         wsclean (bool)
          -if true will fit wsclean spectrum (other wise we use tigger-like spectrum)
         log_spectra (bool)
-         -if true will fit log wsclean spetrum model (only valid if wsclean is true) 
+         -if true will fit log wsclean spetrum model (only valid if wsclean is true)
+        drop_flags (bool)
+         -if true will drop all flags. If this works correctly, this will become the default functioning 
     """
 
-    if wsclean:
-        if gauss:
-            if log_spectra:
-                jaxGrads.forward_model = opt.foward_gauss_lm_wsclean_log
-                optaxGrads.forward_model = opt.foward_gauss_lm_wsclean_log
+    if drop_flags:
+        if wsclean:
+            if gauss:
+                if log_spectra:
+                    jaxGrads.forward_model = opt.foward_gauss_lm_wsclean_log_1d
+                    optaxGrads.forward_model = opt.foward_gauss_lm_wsclean_log_1d
+                else:
+                    jaxGrads.forward_model = opt.foward_gauss_lm_wsclean_1d
+                    optaxGrads.forward_model = opt.foward_gauss_lm_wsclean_1d
             else:
-                jaxGrads.forward_model = opt.foward_gauss_lm_wsclean
-                optaxGrads.forward_model = opt.foward_gauss_lm_wsclean
+                if log_spectra:
+                    jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log_1d
+                    optaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log_1d
+                else:
+                    jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_1d
+                    optaxGrads.forward_model = opt.foward_pnts_lm_wsclean_1d
         else:
-            if log_spectra:
-                jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
-                optaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
+            if gauss:
+                jaxGrads.forward_model = opt.foward_gauss_lm_1d
+                optaxGrads.forward_model = opt.foward_gauss_lm_1d
             else:
-                jaxGrads.forward_model = opt.foward_pnts_lm_wsclean
-                optaxGrads.forward_model = opt.foward_pnts_lm_wsclean
+                jaxGrads.forward_model = opt.foward_pnts_lm_1d
+                optaxGrads.forward_model = opt.foward_pnts_lm_1d
     else:
-        if gauss:
-            jaxGrads.forward_model = opt.foward_gauss_lm
-            optaxGrads.forward_model = opt.foward_gauss_lm
+        if wsclean:
+            if gauss:
+                if log_spectra:
+                    jaxGrads.forward_model = opt.foward_gauss_lm_wsclean_log
+                    optaxGrads.forward_model = opt.foward_gauss_lm_wsclean_log
+                else:
+                    jaxGrads.forward_model = opt.foward_gauss_lm_wsclean
+                    optaxGrads.forward_model = opt.foward_gauss_lm_wsclean
+            else:
+                if log_spectra:
+                    jaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
+                    optaxGrads.forward_model = opt.foward_pnts_lm_wsclean_log
+                else:
+                    jaxGrads.forward_model = opt.foward_pnts_lm_wsclean
+                    optaxGrads.forward_model = opt.foward_pnts_lm_wsclean
         else:
-            jaxGrads.forward_model = opt.foward_pnts_lm
-            optaxGrads.forward_model = opt.foward_pnts_lm
+            if gauss:
+                jaxGrads.forward_model = opt.foward_gauss_lm
+                optaxGrads.forward_model = opt.foward_gauss_lm
+            else:
+                jaxGrads.forward_model = opt.foward_pnts_lm
+                optaxGrads.forward_model = opt.foward_pnts_lm
 
     return 
 
@@ -79,7 +105,7 @@ def _main(exitstack):
     
     assert len(args.fr) == 2
     
-    choose_model_function(args.gauss, args.wsclean, args.log_spectra)
+    choose_model_function(args.gauss, args.wsclean, args.log_spectra, args.drop_flags)
 
     # xds, data_chan_freq, phasedir = set_xds(args.msname, args.datacol, args.weightcol, 10*args.batch_size, args.one_corr, args.dummy_column, args.log_spectra, args.fr)
     

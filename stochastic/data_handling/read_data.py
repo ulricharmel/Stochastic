@@ -121,16 +121,7 @@ class MSobject(object):
             
             data_vis = (data_vis_00*data_weights_00 + data_vis_11*data_weights_11)/(data_weights_00+data_weights_11)
             data_weights = (data_weights_00+data_weights_11)/(2.*noise_factor)
-    
-        data_weights.setflags(write=1)
-        data_weights *= np.logical_not(data_flag)
-        data_uvw = self.ms.getcol("UVW", startrow=i, nrow=batch)
-
-        data_vis = jnp.asarray(data_vis)
-        data_weights = jnp.asarray(data_weights)
-        data_uvw = jnp.asarray(data_uvw)
-
-
+        
         # NOQA: no checks added to ensure single correlation, by default just assume everything is single correlation 
         if dummyparams:
             d_shape_params = d_params["shape_params"]
@@ -149,7 +140,33 @@ class MSobject(object):
         d_kwargs["dummy_params"] = d_params
         d_kwargs["dummy_col_vis"] = None # dummy_vis
 
-        return data_vis, data_weights, data_uvw, d_kwargs
+
+        # flatten the arrays and drop all flag rows
+        data_weights.setflags(write=1)
+        data_weights *= np.logical_not(data_flag)
+
+        nr, nchan, ncorr = data_flag.shape
+        data_flag = data_flag.reshape((nr*nchan)) # this should be single correlation either ways and we expect all correlations to be flagged
+        data_weights = data_weights.reshape((nr*nchan, ncorr))
+
+        data_vis = data_vis.reshape((nr*nchan, ncorr))
+        
+        data_uvw = self.ms.getcol("UVW", startrow=i, nrow=batch)
+        data_uvw = np.tile(data_uvw, nchan).reshape((nr*nchan, -1))
+
+        data_freq = np.repeat(self.data_chan_freq, nr)
+        
+        # create a mask to drop all flagged rows
+        mask = np.where(data_flag==False)[0]
+        
+        data_weights = jnp.asarray(data_weights[mask])
+        data_vis = jnp.asarray(data_vis[mask])
+        data_uvw = jnp.asarray(data_uvw[mask])
+        data_freq = jnp.asarray(data_freq[mask])
+        
+        frac = len(mask)/(nr*nchan)
+
+        return data_vis, data_weights, data_uvw, data_freq, frac, d_kwargs
     
     def __del__(self):
         self.ms.close()

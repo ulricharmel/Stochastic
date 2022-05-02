@@ -233,7 +233,8 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     
     inds = np.array([(i,i+batch_size) for i in range(0, nsamples, batch_size)])
     num_batches = min(len(inds), NITER)
-    logger.info(f"Number of batches in one epoch is {num_batches} out of {len(inds)}")
+    total_batches = len(inds)
+    logger.info(f"Number of batches in one epoch is {num_batches} out of {total_batches}")
     report_batches = list(range(num_batches//REPORT_FREQ, num_batches, num_batches//REPORT_FREQ))
     
     best_loss, best_iter = 10000.0, 0
@@ -254,22 +255,37 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
     for epoch in range(EPOCHS):
         start_time = time.time()
         loss_avg["epoch-%d"%epoch] = []
-        arr = np.random.permutation(num_batches)
-        d_inds = inds[arr]
+        arr = list(np.random.permutation(total_batches))
+        # d_inds = inds[arr]
         grad_avg["epoch-%d"%epoch] = []
+
+        STOP_EPOCH = False
 
         for batch in range(num_batches):
             # ts, te = d_inds[batch]
             # indices = allindices[ts:te]
             # d_vis, d_weights, d_uvw, d_kwargs = getbatch(d_inds[batch], xds, dummy_params, dummy_column, data_chan_freq)
             
-            d_vis, d_weights, d_uvw, d_kwargs = xds.getbatch(d_inds[batch][0], batch_size, dummy_params)
+            while True:
+                try:
+                    batch_ind = arr.pop()
+                except IndexError:
+                    STOP_EPOCH = True
+                    break
+        
+                d_vis, d_weights, d_uvw, d_freq, frac, d_kwargs = xds.getbatch(inds[batch_ind][0], batch_size, dummy_params)
+                if frac > 0.8:
+                    break 
+            
+            if STOP_EPOCH:
+                break
+
             d_kwargs["alpha_l1"] = extra_args["l1r"]
             d_kwargs["alpha_l2"] = extra_args["l2r"]
             d_kwargs["noneg"] = extra_args["noneg"]
             d_kwargs["gauss"] = extra_args["gauss"]
 
-            d_freq = data_chan_freq.copy()
+            # d_freq = data_chan_freq.copy()
 
             # if batch==0 and epoch==0:
             #     jaxGrads.LR = jaxGrads.run_power_method(params, d_uvw, d_freq, d_vis, d_weights, LR, d_kwargs)

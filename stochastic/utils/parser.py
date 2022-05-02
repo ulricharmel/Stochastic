@@ -43,6 +43,8 @@ def create_parser():
 
     p.add_argument("--noneg", "-noneg", help="non negative components, set components flux of negative components to zero",  action="store_true")
 
+    p.add_argument("--drop-flags", "-dfgs", help="Flatten the data and drop flagged rows instead of just setting their weights to 0",  action="store_true")
+
     p.add_argument("--learning-rate", "-lr", dest="lr", type=float, nargs="+",
                         help="leaarning rates to. Either use a single value or list for each parameter (stokes, radec, shape_params)",  
                                 default=[1e-2, 1e-5, 1e-2])
