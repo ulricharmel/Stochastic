@@ -50,6 +50,9 @@ class MSobject(object):
         self.row_offset = 0
 
         fs, fe = self.freq_range
+        if fe == -1:
+            fe = self.nfreqs
+            self.freq_range = [fs, fe]
 
         freqtab = pt.table(msname+'::SPECTRAL_WINDOW', ack=False)
         self.data_chan_freq = jnp.asarray(freqtab.getcol('CHAN_FREQ')[0][fs:fe])
@@ -122,6 +125,8 @@ class MSobject(object):
             data_vis = (data_vis_00*data_weights_00 + data_vis_11*data_weights_11)/(data_weights_00+data_weights_11)
             data_weights = (data_weights_00+data_weights_11)/(2.*noise_factor)
         
+        data_uvw = self.ms.getcol("UVW", startrow=i, nrow=batch)
+
         # NOQA: no checks added to ensure single correlation, by default just assume everything is single correlation 
         if dummyparams:
             d_shape_params = d_params["shape_params"]
@@ -140,7 +145,6 @@ class MSobject(object):
         d_kwargs["dummy_params"] = d_params
         d_kwargs["dummy_col_vis"] = None # dummy_vis
 
-
         # flatten the arrays and drop all flag rows
         data_weights.setflags(write=1)
         data_weights *= np.logical_not(data_flag)
@@ -151,10 +155,9 @@ class MSobject(object):
 
         data_vis = data_vis.reshape((nr*nchan, ncorr))
         
-        data_uvw = self.ms.getcol("UVW", startrow=i, nrow=batch)
         data_uvw = np.tile(data_uvw, nchan).reshape((nr*nchan, -1))
 
-        data_freq = np.repeat(self.data_chan_freq, nr)
+        data_freq = np.tile(self.data_chan_freq, nr)
         
         # create a mask to drop all flagged rows
         mask = np.where(data_flag==False)[0]
@@ -351,7 +354,7 @@ def load_model(modelfile, dummy_model, gauss=False):
         tf = open(modelfile)
         model = json.load(tf)
         spi_c = len(model['alpha'][0])
-        nparams =  6 + spi_c if gauss else 3 + spi_c
+        nparams =  6 + spi_c # if gauss else 3 + spi_c
 
         stokes = model['stokes']
         radec = model['radec']

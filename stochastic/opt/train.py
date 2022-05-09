@@ -287,8 +287,8 @@ def train(params, xds, data_chan_freq, batch_size, outdir, error_fn, LR, *opt_ar
 
             # d_freq = data_chan_freq.copy()
 
-            # if batch==0 and epoch==0:
-            #     jaxGrads.LR = jaxGrads.run_power_method(params, d_uvw, d_freq, d_vis, d_weights, LR, d_kwargs)
+            if batch==0 and epoch==0:
+                jaxGrads.LR = jaxGrads.run_power_method(params, d_uvw, d_freq, d_vis, d_weights, LR, d_kwargs)
 
             x0, _ = ravel_pytree(params)
             iter = get_iter(epoch, num_batches, batch)
