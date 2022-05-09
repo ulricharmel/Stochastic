@@ -31,7 +31,6 @@ opt-einsum==3.3.0
 packaging==21.3
 pandas==1.4.1
 partd==1.2.0
-pkg_resources==0.0.0
 pluggy==1.0.0
 py==1.11.0
 pyerfa==2.0.0.1
