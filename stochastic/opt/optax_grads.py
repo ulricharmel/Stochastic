@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 from jax import lax, jit, random, ops
 from jax.test_util import check_grads
-import optax
-from optax._src import base
+# import optax
+# from optax._src import base
 from jax.flatten_util import ravel_pytree
 
 from stochastic.opt import forward
@@ -123,32 +123,32 @@ def map_nested_fn(fn):
             for k, v in nested_dict.items()}
   return map_fn
 
-def init_optimizer(params, opt="adam", LR=dict(stokes=1e-2, lm=1e-5, alpha=1e-2)):
-    global optimizer
-    label_fn = map_nested_fn(lambda k, _: k)
+# def init_optimizer(params, opt="adam", LR=dict(stokes=1e-2, lm=1e-5, alpha=1e-2)):
+#     global optimizer
+#     label_fn = map_nested_fn(lambda k, _: k)
 
-    if opt == "adam":
-        optimizer = optax.multi_transform({"stokes": optax.adam(LR["stokes"]), "lm": optax.adam(LR["lm"]), "alpha": optax.adam(LR["alpha"])}, label_fn)
-        logger.info("ADAM optimizer initialised!")
-    elif opt == "sgd":
-        optimizer = optax.multi_transform({"stokes": optax.sgd(LR["stokes"]), "lm": optax.sgd(LR["lm"]), "alpha": optax.sgd(LR["alpha"])}, label_fn)
-        logger.info("SGD optimizer initialised!")
-    elif opt == "momentum":
-        optimizer = optax.multi_transform({"stokes": optax.momentum(LR["stokes"]), "lm": optax.momentum(LR["lm"]), "alpha": optax.momentum(LR["alpha"])}, label_fn)
-        logger.info("Momentum optimizer initialised!")
-    else:
-        raise NotImplementedError("Choose between adam, momentum and sgd")
+#     if opt == "adam":
+#         optimizer = optax.multi_transform({"stokes": optax.adam(LR["stokes"]), "lm": optax.adam(LR["lm"]), "alpha": optax.adam(LR["alpha"])}, label_fn)
+#         logger.info("ADAM optimizer initialised!")
+#     elif opt == "sgd":
+#         optimizer = optax.multi_transform({"stokes": optax.sgd(LR["stokes"]), "lm": optax.sgd(LR["lm"]), "alpha": optax.sgd(LR["alpha"])}, label_fn)
+#         logger.info("SGD optimizer initialised!")
+#     elif opt == "momentum":
+#         optimizer = optax.multi_transform({"stokes": optax.momentum(LR["stokes"]), "lm": optax.momentum(LR["lm"]), "alpha": optax.momentum(LR["alpha"])}, label_fn)
+#         logger.info("Momentum optimizer initialised!")
+#     else:
+#         raise NotImplementedError("Choose between adam, momentum and sgd")
     
-    opt_state = optimizer.init(params)
+#     opt_state = optimizer.init(params)
     
-    return opt_state
+#     return opt_state
 
-@jit
-def optax_step(opt_state, params, data_uvw, data_chan_freq, data, weights, kwargs):
-    loss_value, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
-    updates, opt_state = optimizer.update(grads, opt_state, params)
-    params = optax.apply_updates(params, updates)
-    return params, opt_state, loss_value
+# @jit
+# def optax_step(opt_state, params, data_uvw, data_chan_freq, data, weights, kwargs):
+#     loss_value, grads = jax.value_and_grad(loss_fn)(params, data_uvw, data_chan_freq, data, weights, kwargs)
+#     updates, opt_state = optimizer.update(grads, opt_state, params)
+#     params = optax.apply_updates(params, updates)
+#     return params, opt_state, loss_value
 
 #------------------------Add adam ontop of svrg, let see--------------------------------------#
 opt_init = opt_update = get_params = None 
