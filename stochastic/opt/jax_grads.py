@@ -7,7 +7,7 @@ from stochastic.opt.second_order import hessian_diag, fisher_diag, power_wrapper
 from stochastic.rime.tools import *
 from loguru import logger
 
-import optax
+# import optax
 
 # from jax.experimental import optimizers
 import stochastic.opt.optimizers as optimizers
