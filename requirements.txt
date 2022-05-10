@@ -52,3 +52,4 @@ typing_extensions==4.1.1
 urllib3==1.26.9
 xarray
 zict==2.1.0
+MSUtils
